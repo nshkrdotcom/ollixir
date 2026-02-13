@@ -3,7 +3,7 @@
 ## Installation
 
 ```elixir
-{:ollixir, "~> 0.1.0"}
+{:ollixir, "~> 0.1.1"}
 ```
 
 ## Error Types
@@ -106,7 +106,7 @@ Ollixir.web_fetch(client, url: "https://elixir-lang.org")
 
 ```elixir
 Ollixir.chat(client, ..., think: true)                   # Basic thinking
-Ollixir.chat(client, ..., think: "high")                 # Thinking levels (gpt-oss)
+Ollixir.chat(client, ..., think: "high")                 # Thinking levels (gpt-oss, etc.)
 ```
 
 ## Embeddings

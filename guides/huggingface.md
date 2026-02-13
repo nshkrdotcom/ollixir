@@ -15,7 +15,7 @@ Add `hf_hub` to your dependencies in `mix.exs`:
 ```elixir
 defp deps do
   [
-    {:ollixir, "~> 0.1.0"},
+    {:ollixir, "~> 0.1.1"},
     {:hf_hub, "~> 0.1.3"}  # Required for Ollixir.HuggingFace module
   ]
 end

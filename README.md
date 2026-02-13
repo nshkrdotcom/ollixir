@@ -54,7 +54,7 @@ Requires Elixir 1.15+.
 ```elixir
 def deps do
   [
-    {:ollixir, "~> 0.1.0"}
+    {:ollixir, "~> 0.1.1"}
   ]
 end
 ```
@@ -299,16 +299,36 @@ end)
 |> Stream.run()
 ```
 
-Supported cloud model names currently include:
+Cloud models available include:
 
-- `deepseek-v3.1:671b-cloud`
-- `gpt-oss:20b-cloud`
-- `gpt-oss:120b-cloud`
-- `kimi-k2:1t-cloud`
-- `qwen3-coder:480b-cloud`
-- `kimi-k2-thinking`
+**Coding & Agentic:**
+- `minimax-m2.5:cloud` — Coding, tools, thinking
+- `deepseek-v3.1:671b-cloud` — 671B, thinking, tools
+- `deepseek-v3.2:cloud` — Reasoning, agentic
+- `devstral-2:123b-cloud` — 123B, agentic coding
+- `devstral-small-2:24b-cloud` — 24B, agentic coding
+- `qwen3-coder:480b-cloud` — 480B, code generation
+- `qwen3-coder-next:cloud` — 80B (3B active), agentic coding
 
-See https://ollama.com/search?c=cloud for updates.
+**General Purpose & Reasoning:**
+- `glm-5:cloud` — 744B (40B active), reasoning
+- `gemini-3-flash-preview:cloud` — 1M context, vision, thinking
+- `cogito-2.1:671b-cloud` — 671B, MIT license
+- `gpt-oss:20b-cloud` / `gpt-oss:120b-cloud` — Thinking levels
+- `qwen3-next:80b-cloud` — 80B, efficient inference
+- `nemotron-3-nano:30b-cloud` — 30B (3.5B active), 1M context
+
+**Multimodal & Specialized:**
+- `kimi-k2.5:cloud` — Vision + language, thinking
+- `kimi-k2:1t-cloud` — 1T (32B active), agentic
+- `kimi-k2-thinking:cloud` — Reasoning, agentic
+- `qwen3-vl:235b-cloud` — 235B, vision-language
+- `ministral-3:3b/8b/14b-cloud` — Edge, vision
+- `glm-4.6:cloud` / `glm-4.7:cloud` — Coding, agentic
+- `minimax-m2:cloud` / `minimax-m2.1:cloud` — Coding
+- `rnj-1:8b-cloud` — 8B, code & STEM
+
+See https://ollama.com/search?c=cloud for the latest list.
 
 ### Call the hosted API (ollama.com)
 

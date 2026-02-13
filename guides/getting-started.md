@@ -35,7 +35,7 @@ This guide walks you through your first steps with the Ollixir Elixir client.
 ```elixir
 # mix.exs
 def deps do
-  [{:ollixir, "~> 0.1.0"}]
+  [{:ollixir, "~> 0.1.1"}]
 end
 ```
 

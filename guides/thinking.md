@@ -50,9 +50,14 @@ Some models support different thinking intensities:
 |-------|---------------|--------|
 | `deepseek-r1` | Yes | Boolean only |
 | `deepseek-r1:1.5b` | Yes | Boolean only |
+| `deepseek-v3.1:671b-cloud` | Yes | Boolean only |
+| `gemini-3-flash-preview:cloud` | Yes | Boolean only |
 | `gpt-oss:20b-cloud` | Yes | low/medium/high |
 | `gpt-oss:120b-cloud` | Yes | low/medium/high |
-| `kimi-k2-thinking` | Yes | Boolean only |
+| `kimi-k2-thinking:cloud` | Yes | Boolean only |
+| `kimi-k2.5:cloud` | Yes | Boolean only |
+| `minimax-m2.5:cloud` | Yes | Boolean only |
+| `nemotron-3-nano:30b-cloud` | Yes | Boolean only |
 | `qwen3` | Yes | Boolean only |
 
 ## Streaming with Thinking

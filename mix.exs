@@ -5,9 +5,9 @@ defmodule Ollixir.MixProject do
     [
       app: :ollixir,
       name: "Ollixir",
-      description: "Ollixir - A nifty Elixir client library for the Ollama API.",
+      description: "Ollixir is a complete Elixir client library for the Ollama API.",
       source_url: "https://github.com/nshkrdotcom/ollixir",
-      version: "0.1.0",
+      version: "0.1.1",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -15,7 +15,7 @@ defmodule Ollixir.MixProject do
       docs: docs(),
       package: [
         name: "ollixir",
-        files: ~w(lib assets .formatter.exs mix.exs README.md LICENSE CHANGELOG.md),
+        files: ~w(lib .formatter.exs mix.exs README.md LICENSE CHANGELOG.md),
         licenses: ["MIT"],
         links: %{
           "GitHub" => "https://github.com/nshkrdotcom/ollixir"
@@ -35,7 +35,7 @@ defmodule Ollixir.MixProject do
   defp deps do
     [
       {:bandit, "~> 1.10", only: :test},
-      {:ex_doc, "~> 0.39", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.40.0", only: :dev, runtime: false},
       {:hf_hub, "~> 0.1.3", optional: true},
       {:jason, "~> 1.4"},
       {:nimble_options, "~> 1.1"},
@@ -43,7 +43,7 @@ defmodule Ollixir.MixProject do
       {:req, "~> 0.5"},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:supertester, "~> 0.5.0", only: :test}
+      {:supertester, "~> 0.5.1", only: :test}
     ]
   end
 

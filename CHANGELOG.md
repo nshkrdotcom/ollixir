@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-02-13
+
+### Updated
+
+- **Cloud Models Documentation**
+  - Expanded cloud model listings from 6 to 26 models across README, Cloud API guide, and Ollama Setup guide
+  - Added new models: `minimax-m2.5:cloud`, `glm-5:cloud`, `deepseek-v3.2:cloud`, `gemini-3-flash-preview:cloud`, `kimi-k2.5:cloud`, `devstral-2:123b-cloud`, `devstral-small-2:24b-cloud`, `cogito-2.1:671b-cloud`, `qwen3-coder-next:cloud`, `qwen3-next:80b-cloud`, `nemotron-3-nano:30b-cloud`, `qwen3-vl:235b-cloud`, `ministral-3:cloud`, `rnj-1:8b-cloud`, `glm-4.6:cloud`, `glm-4.7:cloud`, `minimax-m2:cloud`, `minimax-m2.1:cloud`
+  - Added parameters, context window, and feature columns to cloud model table in Cloud API guide
+  - Organized README cloud models into categories: Coding & Agentic, General Purpose & Reasoning, Multimodal & Specialized
+
+- **Thinking Mode Documentation**
+  - Added `deepseek-v3.1:671b-cloud`, `gemini-3-flash-preview:cloud`, `kimi-k2.5:cloud`, `minimax-m2.5:cloud`, and `nemotron-3-nano:30b-cloud` to compatible thinking models table
+
 ## [0.1.0] - 2026-01-08
 
 ### Added
@@ -89,4 +102,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 40+ runnable example scripts
   - Cheatsheet for quick reference
 
+[0.1.1]: https://github.com/nshkrdotcom/ollixir/releases/tag/v0.1.1
 [0.1.0]: https://github.com/nshkrdotcom/ollixir/releases/tag/v0.1.0

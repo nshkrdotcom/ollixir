@@ -136,14 +136,34 @@ client = Ollixir.init()
 
 ### Available Cloud Models
 
-| Model | Size | Features |
-|-------|------|----------|
-| `deepseek-v3.1:671b-cloud` | 671B | General purpose |
-| `gpt-oss:20b-cloud` | 20B | Thinking levels |
-| `gpt-oss:120b-cloud` | 120B | Thinking levels |
-| `kimi-k2:1t-cloud` | 1T | Large scale |
-| `kimi-k2-thinking` | - | Reasoning model |
-| `qwen3-coder:480b-cloud` | 480B | Code generation |
+| Model | Parameters | Context | Features |
+|-------|-----------|---------|----------|
+| `cogito-2.1:671b-cloud` | 671B | 160K | General purpose, MIT license |
+| `deepseek-v3.1:671b-cloud` | 671B | 160K | Thinking, tools, coding |
+| `deepseek-v3.2:cloud` | - | 160K | Reasoning, agentic |
+| `devstral-2:123b-cloud` | 123B | 256K | Agentic coding |
+| `devstral-small-2:24b-cloud` | 24B | 256K | Agentic coding |
+| `gemini-3-flash-preview:cloud` | - | 1M | Vision, thinking |
+| `glm-4.6:cloud` | - | 198K | Coding, reasoning, agentic |
+| `glm-4.7:cloud` | - | 198K | Coding, tool use |
+| `glm-5:cloud` | 744B (40B active) | 198K | Reasoning, coding |
+| `gpt-oss:20b-cloud` | 20B | 128K | Thinking levels |
+| `gpt-oss:120b-cloud` | 120B | 128K | Thinking levels |
+| `kimi-k2:1t-cloud` | 1T (32B active) | 256K | Agentic coding |
+| `kimi-k2-thinking:cloud` | - | 256K | Reasoning, agentic |
+| `kimi-k2.5:cloud` | - | 256K | Multimodal, thinking |
+| `minimax-m2:cloud` | 230B (10B active) | 200K | Coding, agentic |
+| `minimax-m2.1:cloud` | 10B active | 200K | Multilingual coding |
+| `minimax-m2.5:cloud` | - | 198K | Coding, thinking, tools |
+| `ministral-3:3b-cloud` | 3B | 256K | Edge, vision |
+| `ministral-3:8b-cloud` | 8B | 256K | Edge, vision |
+| `ministral-3:14b-cloud` | 14B | 256K | Edge, vision |
+| `nemotron-3-nano:30b-cloud` | 30B (3.5B active) | 1M | Reasoning |
+| `qwen3-coder:480b-cloud` | 480B | 256K | Code generation |
+| `qwen3-coder-next:cloud` | 80B (3B active) | 256K | Agentic coding |
+| `qwen3-next:80b-cloud` | 80B | 256K | General purpose |
+| `qwen3-vl:235b-cloud` | 235B | 256K | Vision-language |
+| `rnj-1:8b-cloud` | 8B | 32K | Code, STEM |
 
 See https://ollama.com/search?c=cloud for the latest list.
 
