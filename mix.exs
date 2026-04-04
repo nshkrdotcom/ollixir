@@ -15,7 +15,7 @@ defmodule Ollixir.MixProject do
       docs: docs(),
       package: [
         name: "ollixir",
-        files: ~w(lib .formatter.exs mix.exs README.md LICENSE CHANGELOG.md),
+        files: ~w(lib assets .formatter.exs mix.exs README.md LICENSE CHANGELOG.md),
         licenses: ["MIT"],
         links: %{
           "GitHub" => "https://github.com/nshkrdotcom/ollixir"
