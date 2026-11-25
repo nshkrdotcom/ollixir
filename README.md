@@ -11,13 +11,12 @@
 [Ollama](https://ollama.com) runs large language models locally or on your infrastructure.
 Ollixir provides an Elixir client for native Ollama operations and Ollama's
 OpenAI- and Anthropic-compatible HTTP routes. Version 0.2.0 targets Ollama
-v0.40.18; its newer wire contracts are based on upstream main at
-`784dd544291825e8f5f064672dc2bd7f4d9345ed`. Model and server capabilities vary;
-compatibility routes are not full implementations of the provider SDKs.
+v0.40.18. Supported features vary by server and model. The compatibility routes
+cover the provider API subset implemented by Ollama.
 
 ## Features
 
-- Chat, generate, embeddings, and full model management API coverage
+- Chat, generate, embeddings, and model management
 - Streaming to an `Enumerable` or directly to any process
 - Tool use (function calling) + function-to-tool helpers
 - Structured outputs (JSON or JSON Schema)
@@ -27,7 +26,7 @@ compatibility routes are not full implementations of the provider SDKs.
 - OpenAI-compatible chat, completions, embeddings, models, Responses, audio
 - Anthropic-compatible messages and SSE streaming
 - Typed responses (`response_format: :struct`) and typed options (`Ollixir.Options`)
-- HuggingFace Hub integration: discover and run 45K+ GGUF models ([optional dep](guides/huggingface.md#installation))
+- HuggingFace Hub integration: discover GGUF files and select quantizations ([optional dep](guides/huggingface.md#installation))
 - Cloud API: web search and web fetch
 
 ## Prerequisites

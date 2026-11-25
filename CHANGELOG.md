@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - 2026-11-25
 
-- Isolate hosted web requests from global Req defaults when switching origins and return redirect responses without replaying requests.
-- Monitor streaming workers, bound the wait for an idle stream, and cancel lazy streams when their consumer stops.
-- Validate duplicate native fields and require route-specific provider stream terminals.
-
 ### Added
 
 - System One (`/v1/systemone`) with ordered questions, numeric answers, and
@@ -28,28 +24,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Target Ollama v0.40.18; newer wire contracts follow upstream snapshot
-  `784dd544291825e8f5f064672dc2bd7f4d9345ed`.
+- Target the Ollama v0.40.18 wire contract.
 - Native response structs retain newer metadata, tool-call IDs, thinking, and
   prompt cache metrics. Typed options include `min_p` and `draft_num_predict`.
 - Native `think` is omitted unless explicitly supplied; the server selects its
   default. Legacy `name:` remains accepted alongside `model:`.
-- Native NDJSON and compatibility SSE streams buffer partial frames across
-  transport chunks, surface errors, and support early enumeration termination.
+- Native NDJSON and compatibility SSE streams buffer partial frames and
+  surface errors. Stream workers enforce an idle timeout and cancel when lazy
+  consumers stop.
 - Nested compatibility error details are preserved in `ResponseError`.
 
 ### Fixed
 
 - Preserve proxy mount paths and sibling API namespaces, including mounts ending
-  in `/v1`, and accept bare IPv6 hosts. Support explicit API keys and prevent credential-bearing redirects;
-  hosted web calls no longer inherit credentials from a different origin.
+  in `/v1`, and accept bare IPv6 hosts.
+- Support explicit API keys, return redirects without following them, and
+  isolate hosted web requests from source credentials and global Req defaults
+  when switching origins.
 - Preserve HTTP error bodies, disable automatic retries for native mutations,
   and detect incomplete native streams instead of reporting false success.
 - Accept omitted chat messages and prompts, fractional keep-alive durations,
   and explicitly tagged image, audio and blob bytes. Retain token logprob bytes
   in typed responses and accept string-keyed tools and runner-specific chat roles.
-- Reject duplicate System One criterion keys and compatibility request fields;
-  use MIME types for multipart audio uploads and handle unexpected web bodies.
+- Reject duplicate native and provider request fields and System One criterion
+  keys. Require route-specific stream terminal events, set MIME types for
+  multipart audio uploads, and reject malformed web responses.
 - Correct hosted-client initialization examples and add audit regressions.
 
 ## [0.1.1] - 2026-02-13

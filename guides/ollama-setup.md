@@ -1,4 +1,5 @@
 # Ollama Server Setup
+
 For a pinned, isolated release test server, see [Live Release Validation](live-validation.md).
 
 This guide covers installing Ollama, running the local server, pulling models,
@@ -18,173 +19,13 @@ Download the installer for your platform:
 curl -fsSL https://ollama.com/install.sh | sh
 ```
 
-### Linux (manual install)
+### Linux installation and service management
 
-If you are upgrading from an older version, remove the old libraries first:
-
-```bash
-sudo rm -rf /usr/lib/ollama
-```
-
-Download and extract the package:
-
-```bash
-curl -fsSL https://ollama.com/download/ollama-linux-amd64.tgz \
-  | sudo tar zx -C /usr
-```
-
-Start the server:
-
-```bash
-ollama serve
-```
-
-Verify:
-
-```bash
-ollama -v
-```
-
-#### AMD GPU (ROCm)
-
-```bash
-curl -fsSL https://ollama.com/download/ollama-linux-amd64-rocm.tgz \
-  | sudo tar zx -C /usr
-```
-
-#### ARM64
-
-```bash
-curl -fsSL https://ollama.com/download/ollama-linux-arm64.tgz \
-  | sudo tar zx -C /usr
-```
-
-## Run as a systemd service (recommended)
-
-Create a dedicated user and group:
-
-```bash
-sudo useradd -r -s /bin/false -U -m -d /usr/share/ollama ollama
-sudo usermod -a -G ollama $(whoami)
-```
-
-Create `/etc/systemd/system/ollama.service`:
-
-```ini
-[Unit]
-Description=Ollama Service
-After=network-online.target
-
-[Service]
-ExecStart=/usr/bin/ollama serve
-User=ollama
-Group=ollama
-Restart=always
-RestartSec=3
-Environment="PATH=$PATH"
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable ollama
-sudo systemctl start ollama
-```
-
-Check status:
-
-```bash
-systemctl status ollama
-```
-
-## GPU Drivers (Optional)
-
-### NVIDIA CUDA
-
-Install CUDA drivers from:
-
-- https://developer.nvidia.com/cuda-downloads
-
-Verify:
-
-```bash
-nvidia-smi
-```
-
-### AMD ROCm
-
-Install ROCm from:
-
-- https://rocm.docs.amd.com/projects/install-on-linux/en/latest/tutorial/quick-start.html
-
-For newer GPU support, consider the latest AMD drivers:
-
-- https://www.amd.com/en/support/linux-drivers
-
-## Customization
-
-Edit the systemd service or add overrides:
-
-```bash
-sudo systemctl edit ollama
-```
-
-Example override (`/etc/systemd/system/ollama.service.d/override.conf`):
-
-```ini
-[Service]
-Environment="OLLAMA_DEBUG=1"
-```
-
-## Updating
-
-Re-run the install script:
-
-```bash
-curl -fsSL https://ollama.com/install.sh | sh
-```
-
-Or re-download the package:
-
-```bash
-curl -fsSL https://ollama.com/download/ollama-linux-amd64.tgz \
-  | sudo tar zx -C /usr
-```
-
-### Installing a specific version
-
-```bash
-curl -fsSL https://ollama.com/install.sh | OLLAMA_VERSION=0.5.7 sh
-```
-
-## Uninstall
-
-Stop and remove the service:
-
-```bash
-sudo systemctl stop ollama
-sudo systemctl disable ollama
-sudo rm /etc/systemd/system/ollama.service
-```
-
-Remove libraries and binaries:
-
-```bash
-sudo rm -r $(which ollama | tr 'bin' 'lib')
-sudo rm $(which ollama)
-```
-
-Remove models and service user:
-
-```bash
-sudo userdel ollama
-sudo groupdel ollama
-sudo rm -r /usr/share/ollama
-```
+The [official Linux guide](https://docs.ollama.com/linux) covers manual
+installation, architecture-specific bundles, GPU drivers, systemd, upgrades,
+and uninstalling. For release validation, use the isolated setup linked above.
+It verifies the exact bundle, uses a separate model store, and runs alongside
+an existing system service.
 
 ## Start the Server
 

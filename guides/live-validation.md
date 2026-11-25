@@ -148,9 +148,30 @@ adversarial cases, account mutation, parser edge cases, and unsupported runner
 combinations remain covered by the applicable mocks and source audit. Use the
 [individual examples](../examples/README.md) to inspect a scenario manually.
 
-After any code or fixture changes, rerun the affected checks, the normal test
-matrix, and build the docs and Hex tarball again from the chosen clean release
-SHA. The previous candidate's package digest does not apply to a changed
-checkout. Verify Hex version and tag availability at publication time. Publish
-0.2.0 manually once the required evidence is in place and tag only after
-confirming the Hex publication.
+Run the affected checks again after code or fixture changes. For sign-off:
+
+1. Run `examples/live/live.sh mock` and `examples/live/live.sh check`. Record
+   the registry pull and any applicable HF, cloud, or authorized push results.
+2. Push the chosen release commit and verify that all GitHub CI matrix jobs
+   pass for that SHA.
+3. In a clean checkout of the same SHA, build and inspect the artifacts:
+
+   ```sh
+   mix deps.get
+   mix format --check-formatted
+   mix compile --warnings-as-errors
+   mix dialyzer
+   mix docs
+   mkdir -p tmp
+   mix hex.build -o tmp/ollixir-0.2.0.tar
+   tar -tf tmp/ollixir-0.2.0.tar
+   tar -xOf tmp/ollixir-0.2.0.tar contents.tar.gz | tar -tzf -
+   sha256sum tmp/ollixir-0.2.0.tar
+   ```
+
+4. Confirm the version is available on Hex and there is no existing local or
+   remote `v0.2.0` tag. Publish manually with `mix hex.publish` from that same
+   checkout. Tag the exact release commit after confirming publication.
+
+The package digest applies to the exact artifact you inspected. Rebuild it
+after any change to package contents.
