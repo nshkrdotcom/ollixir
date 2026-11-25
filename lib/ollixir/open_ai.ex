@@ -27,14 +27,14 @@ defmodule Ollixir.OpenAI do
 
   @doc "Create a text completion (`POST /v1/completions`)."
   def completions(client, params),
-    do: Protocol.json(client, "/v1/completions", params, [:model, :prompt], :sse)
+    do: Protocol.json(client, "/v1/completions", params, [:model], :sse)
 
   @doc "Alias for `completions/2`."
   def completion(client, params), do: completions(client, params)
 
   @doc "Create embeddings (`POST /v1/embeddings`)."
   def embeddings(client, params),
-    do: Protocol.json(client, "/v1/embeddings", params, [:model, :input])
+    do: Protocol.json(client, "/v1/embeddings", params, [:model])
 
   @doc "Alias for `embeddings/2`."
   def embed(client, params), do: embeddings(client, params)
@@ -58,7 +58,7 @@ defmodule Ollixir.OpenAI do
 
   @doc "Create a Responses API response (`POST /v1/responses`)."
   def responses(client, params),
-    do: Protocol.json(client, "/v1/responses", params, [:model, :input], :sse)
+    do: Protocol.json(client, "/v1/responses", params, [:model], :sse)
 
   @doc "Compact a Responses API transcript (`POST /v1/responses/compact`)."
   def responses_compact(client, params),

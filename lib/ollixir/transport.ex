@@ -11,42 +11,64 @@ defmodule Ollixir.Transport do
       opts = secure_options(req, opts)
 
       req
-      |> Req.request(opts)
+      |> request_req(opts)
       |> result()
     end
   end
 
-  # Req strips standard Authorization on cross-origin redirects by default, but
-  # custom authentication headers (e.g. x-api-key) need not be stripped.
-  # Require callers to inspect a redirect and construct a new client instead.
-  def secure_options(req, opts) do
-    credential_headers = [
-      "authorization",
-      "proxy-authorization",
-      "cookie",
-      "x-api-key",
-      "api-key"
-    ]
+  # Custom request steps can attach credentials after options are selected.
+  def secure_options(_req, opts) do
+    Keyword.merge(opts, redirect: false, redirect_trusted: false)
+  end
 
-    if req.options[:auth] ||
-         Enum.any?(credential_headers, &(Req.Request.get_header(req, &1) != [])) do
-      Keyword.merge(opts, redirect: false, redirect_trusted: false)
+  def request_req(req, opts) do
+    Req.request(req, opts)
+  rescue
+    _error in [Jason.EncodeError, Protocol.UndefinedError] ->
+      {:error, RequestError.exception("Request contains a value that cannot be encoded as JSON")}
+  end
+
+  def normalize_keys(map, keys) do
+    Enum.reduce_while(keys, {:ok, map}, fn key, {:ok, acc} ->
+      case Map.pop(acc, Atom.to_string(key)) do
+        {_, ^acc} ->
+          {:cont, {:ok, acc}}
+
+        {value, rest} ->
+          if Map.has_key?(rest, key) do
+            {:halt, {:error, RequestError.exception("Duplicate request field #{key}")}}
+          else
+            {:cont, {:ok, Map.put(rest, key, value)}}
+          end
+      end
+    end)
+  end
+
+  def parse_http_url(value) when is_binary(value) do
+    with {:ok, %URI{scheme: scheme, host: host, port: port, userinfo: nil} = uri} <-
+           URI.new(value),
+         true <- scheme in ["http", "https"] and is_binary(host) and host != "",
+         true <- is_integer(port) and port in 1..65_535,
+         authority when is_binary(authority) <- URI.parse(value).authority,
+         false <- String.ends_with?(authority, ":") do
+      {:ok, %{uri | authority: authority}}
     else
-      opts
+      _ ->
+        {:error, RequestError.exception("Expected an absolute HTTP(S) URL without credentials")}
     end
   end
+
+  def parse_http_url(%URI{} = uri), do: parse_http_url(URI.to_string(uri))
+
+  def parse_http_url(_),
+    do: {:error, RequestError.exception("Expected an absolute HTTP(S) URL without credentials")}
 
   def url(req, path) do
     base = req.options[:base_url] || req.url
 
-    case URI.parse(to_string(base || "")) do
-      %URI{scheme: scheme, host: host} = uri
-      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
-        prefix = (uri.path || "") |> String.trim_trailing("/") |> strip_namespace()
-        {:ok, URI.to_string(%{uri | path: prefix <> path, query: nil, fragment: nil})}
-
-      _ ->
-        {:error, RequestError.exception("A valid absolute server base URL is required")}
+    with {:ok, uri} <- parse_http_url(base) do
+      prefix = (uri.path || "") |> String.trim_trailing("/") |> strip_namespace()
+      {:ok, URI.to_string(%{uri | path: prefix <> path, query: nil, fragment: nil})}
     end
   end
 

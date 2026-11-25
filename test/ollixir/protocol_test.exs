@@ -39,6 +39,24 @@ defmodule Ollixir.ProtocolTest do
     end
   end
 
+  test "stable provider converters accept empty and omitted inputs where applicable" do
+    c =
+      client(fn request ->
+        expected = %{
+          "/proxy/v1/completions" => "prompt",
+          "/proxy/v1/embeddings" => "input",
+          "/proxy/v1/responses" => "input"
+        }
+
+        field = Map.fetch!(expected, request.url.path)
+        json(request, %{"value" => Map.get(body(request), field, "omitted")})
+      end)
+
+    assert {:ok, %{"value" => ""}} = OpenAI.completions(c, model: "m", prompt: "")
+    assert {:ok, %{"value" => ""}} = OpenAI.embeddings(c, model: "m", input: "")
+    assert {:ok, %{"value" => "omitted"}} = OpenAI.responses(c, model: "m", instructions: "hello")
+  end
+
   test "models routes and base URL namespace handling" do
     for base <- [
           "http://ollama.test/proxy",
@@ -110,6 +128,25 @@ defmodule Ollixir.ProtocolTest do
     Enum.reduce_while(chunks, {request, %Req.Response{status: status, body: ""}}, fn chunk, acc ->
       request.into.({:data, chunk}, acc)
     end)
+  end
+
+  test "SSE requires the route's terminal event and ignores frames after it" do
+    wrong = client(fn request -> chunks(request, ["data: [DONE]\n\n"]) end)
+
+    assert {:ok, stream} =
+             Anthropic.messages(wrong, model: "m", messages: [], max_tokens: 16, stream: true)
+
+    assert_raise RequestError, fn -> Enum.to_list(stream) end
+
+    complete =
+      client(fn request ->
+        chunks(request, [
+          "data: {\"type\":\"response.incomplete\"}\n\ndata: invalid-late-json\n\n"
+        ])
+      end)
+
+    assert {:ok, stream} = OpenAI.responses(complete, model: "m", input: "hi", stream: true)
+    assert Enum.to_list(stream) == [%{"type" => "response.incomplete"}]
   end
 
   test "SSE supports fragmented UTF-8, CRLF, comments, multiline data, and DONE" do

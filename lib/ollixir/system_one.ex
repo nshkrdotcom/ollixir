@@ -7,7 +7,7 @@ defmodule Ollixir.SystemOne do
   immaterial. Question criteria may also be `Jason.OrderedObject` values.
   """
 
-  alias Ollixir.RequestError
+  alias Ollixir.{RequestError, Transport}
 
   @doc false
   def normalize(params) do
@@ -29,7 +29,8 @@ defmodule Ollixir.SystemOne do
       {name, question}, {:ok, acc, seen} when is_binary(name) or is_atom(name) ->
         name = to_string(name)
 
-        with false <- String.trim(name) == "" or MapSet.member?(seen, name),
+        with false <-
+               not String.valid?(name) or String.trim(name) == "" or MapSet.member?(seen, name),
              {:ok, question} <- normalize_question(question) do
           {:cont, {:ok, [{name, question} | acc], MapSet.put(seen, name)}}
         else
@@ -49,17 +50,20 @@ defmodule Ollixir.SystemOne do
   defp questions(_), do: invalid(:questions, "Expected an object containing 1 to 64 questions")
 
   defp normalize_question(question) when is_map(question) and not is_struct(question) do
-    type = Map.get(question, :type, question["type"])
-    instructions = Map.get(question, :instructions, question["instructions"])
-    criteria = Map.get(question, :criteria, question["criteria"])
-
-    with :ok <- optional_content(instructions, :instructions),
+    with {:ok, question} <- Transport.normalize_keys(question, [:type, :instructions, :criteria]),
+         %{type: type} <- question,
+         instructions = question[:instructions],
+         criteria = question[:criteria],
+         :ok <- optional_content(instructions, :instructions),
          :ok <- criteria(type, criteria) do
       result =
         %{type: type, instructions: instructions, criteria: criteria}
         |> Map.reject(fn {_key, value} -> is_nil(value) end)
 
       {:ok, result}
+    else
+      {:error, _} = error -> error
+      _ -> invalid(:questions, "Question type is required")
     end
   end
 
@@ -83,7 +87,10 @@ defmodule Ollixir.SystemOne do
       Enum.all?(pairs, fn
         {key, _} when is_atom(key) or is_binary(key) ->
           key = to_string(key)
-          if type == "noul", do: key in ["true", "false"], else: String.trim(key) != ""
+
+          if type == "noul",
+            do: key in ["true", "false"],
+            else: String.valid?(key) and String.trim(key) != ""
 
         _ ->
           false

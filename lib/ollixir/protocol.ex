@@ -130,8 +130,8 @@ defmodule Ollixir.Protocol do
       end
 
       case stream do
-        true -> {:ok, enumerable(work)}
-        pid when is_pid(pid) -> {:ok, Task.async(fn -> work.(pid) end)}
+        true -> {:ok, Ollixir.StreamWorker.enumerable(work, client.req)}
+        pid when is_pid(pid) -> {:ok, Ollixir.StreamWorker.task(work, pid, client.req)}
       end
     end
   end
@@ -141,59 +141,6 @@ defmodule Ollixir.Protocol do
   defp terminal_event("/v1/audio/" <> _), do: ["transcript.text.done"]
   defp terminal_event(_path), do: []
 
-  defp enumerable(work) do
-    Stream.resource(
-      fn ->
-        owner = self()
-        {Task.async(fn -> work.(owner) end), false}
-      end,
-      &next/1,
-      &close/1
-    )
-  end
-
-  defp next({%Task{pid: pid, ref: ref} = task, false}) do
-    receive do
-      {^pid, {:data, data}} ->
-        {[data], {task, false}}
-
-      {^ref, {:ok, :done}} ->
-        Process.demonitor(ref, [:flush])
-        {:halt, {task, true}}
-
-      {^ref, {:error, error}} ->
-        Process.demonitor(ref, [:flush])
-        raise error
-
-      {:DOWN, ^ref, :process, ^pid, reason} ->
-        raise RequestError.exception("Stream task stopped: #{inspect(reason)}")
-    end
-  end
-
-  defp close({%Task{pid: pid} = task, finished}) do
-    unless finished do
-      if Process.alive?(pid), do: Task.shutdown(task, :brutal_kill)
-      Process.demonitor(task.ref, [:flush])
-      ref = task.ref
-
-      receive do
-        {^ref, _} -> :ok
-      after
-        0 -> :ok
-      end
-    end
-
-    drain(pid)
-  end
-
-  defp drain(pid) do
-    receive do
-      {^pid, {:data, _}} -> drain(pid)
-    after
-      0 -> :ok
-    end
-  end
-
   defp run_stream(req, opts, dest, mode) do
     handler = fn {:data, chunk}, {request, response} ->
       response = handle_chunk(response, chunk, dest, mode)
@@ -202,7 +149,7 @@ defmodule Ollixir.Protocol do
       {action, {request, response}}
     end
 
-    case Req.request(req, Keyword.put(opts, :into, handler)) do
+    case Transport.request_req(req, Keyword.put(opts, :into, handler)) do
       {:ok, %{status: status} = response} when status in 200..299 ->
         finish(response, dest, mode)
 
@@ -217,7 +164,7 @@ defmodule Ollixir.Protocol do
   end
 
   defp handle_chunk(response, chunk, dest, :binary) do
-    send(dest, {self(), {:data, chunk}})
+    Ollixir.StreamWorker.emit(dest, chunk)
     %{response | private: Map.put(response.private, :ollixir_binary_stream, true)}
   end
 
@@ -226,23 +173,30 @@ defmodule Ollixir.Protocol do
     {events, state} = SSE.feed(state, chunk)
 
     state =
-      Enum.reduce_while(events, state, fn {event, data}, acc ->
-        type = data["type"]
+      Enum.reduce_while(events, state, fn
+        :done, acc when terminal_event == [] ->
+          {:halt, %{acc | terminal: true, error: nil}}
 
-        cond do
-          event in ["error", "response.failed"] or type in ["error", "response.failed"] or
-              not is_nil(data["error"]) ->
-            error = ResponseError.exception(status: response.status, body: data)
-            {:halt, %{acc | error: error}}
+        :done, acc ->
+          {:halt, %{acc | error: :unexpected_done_marker}}
 
-          event in terminal_event or type in terminal_event ->
-            send(dest, {self(), {:data, data}})
-            {:halt, %{acc | terminal: true, error: nil}}
+        {event, data}, acc ->
+          type = data["type"]
 
-          true ->
-            send(dest, {self(), {:data, data}})
-            {:cont, acc}
-        end
+          cond do
+            event in ["error", "response.failed"] or type in ["error", "response.failed"] or
+                not is_nil(data["error"]) ->
+              error = ResponseError.exception(status: response.status, body: data)
+              {:halt, %{acc | error: error}}
+
+            event in terminal_event or type in terminal_event ->
+              Ollixir.StreamWorker.emit(dest, data)
+              {:halt, %{acc | terminal: true, error: nil}}
+
+            true ->
+              Ollixir.StreamWorker.emit(dest, data)
+              {:cont, acc}
+          end
       end)
 
     %{response | private: Map.put(response.private, :ollixir_sse, state)}
@@ -252,7 +206,7 @@ defmodule Ollixir.Protocol do
     # Some Req adapters return a body without calling :into.
     if not Map.get(response.private, :ollixir_binary_stream, false) and is_binary(response.body) and
          byte_size(response.body) > 0 do
-      send(dest, {self(), {:data, response.body}})
+      Ollixir.StreamWorker.emit(dest, response.body)
     end
 
     {:ok, :done}

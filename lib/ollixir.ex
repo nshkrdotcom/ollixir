@@ -282,32 +282,36 @@ defmodule Ollixir do
   defp normalize_base_url(url) when is_binary(url) do
     url = String.trim(url)
 
-    uri =
-      cond do
-        url == "" ->
-          URI.parse("http://localhost:11434")
+    with {:ok, uri} <- parse_base_url(url) do
+      path = String.trim_trailing(uri.path || "", "/")
 
-        String.contains?(url, "://") ->
-          URI.parse(url)
+      path =
+        cond do
+          String.ends_with?(path, "/api") -> path
+          String.ends_with?(path, "/v1") -> String.trim_trailing(path, "/v1") <> "/api"
+          true -> path <> "/api"
+        end
 
-        true ->
-          parse_bare_host(url)
-      end
+      URI.to_string(%{uri | path: path, query: nil, fragment: nil})
+    else
+      # Keep init/1's client return type. Route construction rejects this base
+      # before any request step or adapter can run.
+      {:error, _} -> ""
+    end
+  end
 
-    path = String.trim_trailing(uri.path || "", "/")
+  defp normalize_base_url(_), do: ""
 
-    path =
-      cond do
-        String.ends_with?(path, "/api") -> path
-        String.ends_with?(path, "/v1") -> String.trim_trailing(path, "/v1") <> "/api"
-        true -> path <> "/api"
-      end
+  defp parse_base_url(""), do: Transport.parse_http_url("http://localhost:11434")
 
-    URI.to_string(%{uri | path: path, query: nil, fragment: nil})
+  defp parse_base_url(url) do
+    if String.contains?(url, "://"),
+      do: Transport.parse_http_url(url),
+      else: parse_bare_host(url)
   end
 
   defp parse_bare_host(host) do
-    [authority | _] = String.split(host, "/", parts: 2)
+    [authority | _] = String.split(host, ["/", "?", "#"], parts: 2)
 
     host =
       cond do
@@ -321,12 +325,10 @@ defmodule Ollixir do
           host
       end
 
-    uri = URI.parse("http://" <> host)
-
-    explicit_port =
-      Regex.match?(~r/\]:\d+\z|\A[^\[\]:]+:\d+\z/, uri.authority || "")
-
-    if explicit_port, do: uri, else: %{uri | port: 11434}
+    with {:ok, uri} <- Transport.parse_http_url("http://" <> host) do
+      explicit_port? = Regex.match?(~r/\]:\d+\z|\A[^\[\]:]+:\d+\z/, uri.authority)
+      {:ok, if(explicit_port?, do: uri, else: %{uri | port: 11434})}
+    end
   end
 
   defp merge_headers(base, override) do
@@ -352,7 +354,21 @@ defmodule Ollixir do
   defp resolve_response_format(format) when format in [:map, :struct], do: format
   defp resolve_response_format(_), do: :map
 
+  defp unique_params(params) do
+    keys = Keyword.keys(params)
+
+    if length(keys) == length(Enum.uniq(keys)) do
+      :ok
+    else
+      {:error, RequestError.exception("Duplicate native request field")}
+    end
+  end
+
   defp validate_params(params, schema) do
+    with :ok <- unique_params(params), do: validate_schema(params, schema)
+  end
+
+  defp validate_schema(params, schema) do
     params =
       Enum.reject(params, fn {key, value} ->
         is_nil(value) and Keyword.has_key?(schema.schema, key) and
@@ -446,6 +462,9 @@ defmodule Ollixir do
 
   defp apply_cast({:ok, body}, cast_fun) when is_map(body) and is_function(cast_fun) do
     {:ok, cast_fun.(body)}
+  rescue
+    _error in [BadMapError, FunctionClauseError, Protocol.UndefinedError] ->
+      {:error, RequestError.exception("Invalid nested JSON response fields")}
   end
 
   defp apply_cast({:ok, _body}, cast_fun) when is_function(cast_fun) do
@@ -545,22 +564,16 @@ defmodule Ollixir do
   defp encode_message_images_one(message) when is_map(message) do
     message = if is_struct(message), do: Map.from_struct(message), else: message
 
-    message =
-      Enum.reduce(
-        ~w(role content thinking images tool_name tool_call_id tool_calls)a,
-        message,
-        fn key, acc ->
-          string_key = Atom.to_string(key)
+    keys = ~w(role content thinking images tool_name tool_call_id tool_calls)a
 
-          if Map.has_key?(acc, string_key) do
-            {value, acc} = Map.pop(acc, string_key)
-            Map.put_new(acc, key, value)
-          else
-            acc
-          end
-        end
-      )
+    with {:ok, message} <- Transport.normalize_keys(message, keys) do
+      encode_normalized_message(message)
+    end
+  end
 
+  defp encode_message_images_one(other), do: {:ok, other}
+
+  defp encode_normalized_message(message) do
     message =
       case message[:tool_calls] do
         calls when is_list(calls) ->
@@ -604,8 +617,6 @@ defmodule Ollixir do
         {:error, RequestError.invalid_type(:images, images, "list")}
     end
   end
-
-  defp encode_message_images_one(other), do: {:ok, other}
 
   defp drop_nil_values(map) do
     map
@@ -731,7 +742,8 @@ defmodule Ollixir do
     {format, params} = pop_response_format(params)
     cast_fun = cast_fun_for(:chat, format)
 
-    with {:ok, params} <- normalize_debug(params),
+    with :ok <- unique_params(params),
+         {:ok, params} <- normalize_debug(params),
          {:ok, params} <- normalize_options(params),
          {:ok, params} <- normalize_tools(params),
          {:ok, params} <- normalize_messages_images(params),
@@ -865,7 +877,8 @@ defmodule Ollixir do
     {format, params} = pop_response_format(params)
     cast_fun = cast_fun_for(:completion, format)
 
-    with {:ok, params} <- normalize_debug(params),
+    with :ok <- unique_params(params),
+         {:ok, params} <- normalize_debug(params),
          {:ok, params} <- normalize_options(params),
          {:ok, params} <- normalize_images(params),
          {:ok, params} <- validate_params(params, schema_def(:completion)) do
@@ -960,7 +973,8 @@ defmodule Ollixir do
     {format, params} = pop_response_format(params)
     cast_fun = cast_fun_for(:progress, format)
 
-    with {:ok, params} <- normalize_messages_images(params),
+    with :ok <- unique_params(params),
+         {:ok, params} <- normalize_messages_images(params),
          {:ok, params} <- validate_params(params, schema_def(:create_model)),
          :ok <- validate_model_name(params) do
       parameters =
@@ -1228,7 +1242,8 @@ defmodule Ollixir do
     endpoint = if params[:all_manifests], do: :show_manifests, else: :show_model
     cast_fun = cast_fun_for(endpoint, format)
 
-    with {:ok, params} <- normalize_options(params),
+    with :ok <- unique_params(params),
+         {:ok, params} <- normalize_options(params),
          {:ok, params} <- validate_params(params, schema_def(:show_model)),
          :ok <- validate_model_name(params) do
       client
@@ -1729,7 +1744,8 @@ defmodule Ollixir do
     {format, params} = pop_response_format(params)
     cast_fun = cast_fun_for(:embed, format)
 
-    with {:ok, params} <- Ollixir.EmbeddingInput.normalize(params),
+    with :ok <- unique_params(params),
+         {:ok, params} <- Ollixir.EmbeddingInput.normalize(params),
          {:ok, params} <- normalize_options(params),
          {:ok, params} <- validate_params(params, schema_def(:embed)) do
       client
@@ -1801,7 +1817,8 @@ defmodule Ollixir do
     {format, params} = pop_response_format(params)
     cast_fun = cast_fun_for(:embeddings, format)
 
-    with {:ok, params} <- normalize_options(params),
+    with :ok <- unique_params(params),
+         {:ok, params} <- normalize_options(params),
          {:ok, params} <- validate_params(params, schema_def(:embeddings)) do
       client
       |> req(:post, "/embeddings", json: Enum.into(params, %{}))
@@ -1882,7 +1899,8 @@ defmodule Ollixir do
   def system_one(%__MODULE__{} = client, params) when is_list(params) do
     {format, params} = pop_response_format(params)
 
-    with {:ok, params} <- normalize_images(params),
+    with :ok <- unique_params(params),
+         {:ok, params} <- normalize_images(params),
          {:ok, params} <- validate_params(params, schema_def(:system_one)),
          {:ok, params} <- Ollixir.SystemOne.normalize(params) do
       client
@@ -2016,28 +2034,18 @@ defmodule Ollixir do
 
           case stream_opt do
             true ->
-              stream =
-                Stream.resource(
-                  fn ->
-                    dest = self()
-                    {Task.async(fn -> work.(dest) end), false}
-                  end,
-                  &stream_next/1,
-                  &stream_end/1
-                )
-
-              {:ok, stream}
+              {:ok, Ollixir.StreamWorker.enumerable(work, req)}
 
             pid ->
-              {:ok, Task.async(fn -> work.(pid) end)}
+              {:ok, Ollixir.StreamWorker.task(work, pid, req)}
           end
 
         streaming_endpoint and is_map(Keyword.get(opts, :json)) ->
           opts = Keyword.update!(opts, :json, &Map.put(&1, :stream, false))
-          Req.request(req, opts)
+          Transport.request_req(req, opts)
 
         true ->
-          Req.request(req, opts)
+          Transport.request_req(req, opts)
       end
     end
   end
@@ -2100,7 +2108,7 @@ defmodule Ollixir do
       {action, {request, response}}
     end
 
-    case Req.request(req, Keyword.put(opts, :into, handler)) do
+    case Transport.request_req(req, Keyword.put(opts, :into, handler)) do
       {:ok, %{status: status} = response} when status in 200..299 ->
         response =
           cond do
@@ -2194,7 +2202,7 @@ defmodule Ollixir do
 
           {:ok, data} when is_map(data) ->
             payload = if is_function(cast_fun), do: cast_fun.(data), else: data
-            send(dest, {self(), {:data, payload}})
+            Ollixir.StreamWorker.emit(dest, payload)
             %{response | body: merge_native(response.body, data)}
 
           _ ->
@@ -2224,46 +2232,4 @@ defmodule Ollixir do
        do: prev ++ next
 
   defp merge_native_field(_key, _prev, next), do: next
-
-  defp stream_next({%Task{pid: pid, ref: ref} = task, false}) do
-    receive do
-      {^pid, {:data, data}} ->
-        {[data], {task, false}}
-
-      {^ref, {:ok, _}} ->
-        Process.demonitor(ref, [:flush])
-        {:halt, {task, true}}
-
-      {^ref, {:error, error}} ->
-        Process.demonitor(ref, [:flush])
-        raise error
-
-      {:DOWN, ^ref, :process, ^pid, reason} ->
-        raise RequestError.exception("Stream task stopped: #{inspect(reason)}")
-    end
-  end
-
-  defp stream_end({%Task{pid: pid} = task, finished}) do
-    unless finished do
-      if Process.alive?(pid), do: Task.shutdown(task, :brutal_kill)
-      Process.demonitor(task.ref, [:flush])
-      ref = task.ref
-
-      receive do
-        {^ref, _} -> :ok
-      after
-        0 -> :ok
-      end
-    end
-
-    drain_stream(pid)
-  end
-
-  defp drain_stream(pid) do
-    receive do
-      {^pid, {:data, _}} -> drain_stream(pid)
-    after
-      0 -> :ok
-    end
-  end
 end

@@ -18,7 +18,7 @@ defmodule Ollixir.Types.ToolCall do
 
     %__MODULE__{
       id: map["id"] || map[:id],
-      function: normalize_function(function)
+      function: if(is_map(function), do: normalize_function(function))
     }
   end
 
@@ -34,13 +34,13 @@ defmodule Ollixir.Types.ToolCall do
 
   defp parse_arguments(args) when is_binary(args) do
     case Jason.decode(args) do
-      {:ok, parsed} -> parsed
-      {:error, _} -> %{}
+      {:ok, parsed} when is_map(parsed) -> parsed
+      _ -> args
     end
   end
 
   defp parse_arguments(args) when is_map(args), do: args
-  defp parse_arguments(_), do: %{}
+  defp parse_arguments(args), do: args
 
   @doc """
   Get the function name.
@@ -51,9 +51,9 @@ defmodule Ollixir.Types.ToolCall do
   def name(_), do: nil
 
   @doc """
-  Get the function arguments.
+  Get the function arguments. Invalid argument values are returned as received.
   """
-  @spec arguments(t()) :: map()
+  @spec arguments(t()) :: term()
   def arguments(%__MODULE__{function: %{"arguments" => args}}), do: args
   def arguments(%__MODULE__{function: %{arguments: args}}), do: args
   def arguments(_), do: %{}

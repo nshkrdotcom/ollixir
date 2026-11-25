@@ -32,13 +32,13 @@ defmodule Ollixir.Web do
   @spec search(Ollixir.client(), search_opts()) :: {:ok, SearchResponse.t()} | {:error, term()}
   def search(%Ollixir{} = client, opts) do
     {base_url, opts} = Keyword.pop(opts, :base_url)
-    {api_key, opts} = Keyword.pop(opts, :api_key)
+    {api_key, opts} = Keyword.pop(opts, :api_key, :default)
 
     with {:ok, validated} <- validate_search_opts(opts),
          {:ok, cloud_client} <- ensure_cloud_client(client, base_url, api_key),
          {:ok, response} when is_map(response) <-
            do_request(cloud_client, :post, "/web_search", validated) do
-      {:ok, SearchResponse.from_map(response)}
+      cast_search(response)
     else
       {:ok, _} -> invalid_response()
       error -> error
@@ -62,7 +62,7 @@ defmodule Ollixir.Web do
   @spec fetch(Ollixir.client(), fetch_opts()) :: {:ok, FetchResponse.t()} | {:error, term()}
   def fetch(%Ollixir{} = client, opts) do
     {base_url, opts} = Keyword.pop(opts, :base_url)
-    {api_key, opts} = Keyword.pop(opts, :api_key)
+    {api_key, opts} = Keyword.pop(opts, :api_key, :default)
 
     with {:ok, validated} <- validate_fetch_opts(opts),
          {:ok, cloud_client} <- ensure_cloud_client(client, base_url, api_key),
@@ -94,7 +94,7 @@ defmodule Ollixir.Web do
              json: body,
              retry: false
            ) do
-      {:ok, SearchResponse.from_map(response)}
+      cast_search(response)
     else
       {:ok, _} -> invalid_response()
       error -> error
@@ -115,6 +115,16 @@ defmodule Ollixir.Web do
       error -> error
     end
   end
+
+  defp cast_search(%{"results" => results} = response) when is_list(results) do
+    if Enum.all?(results, &is_map/1) do
+      {:ok, SearchResponse.from_map(response)}
+    else
+      {:error, RequestError.exception("Expected web search results to be JSON objects")}
+    end
+  end
+
+  defp cast_search(_), do: {:error, RequestError.exception("Expected a web search results list")}
 
   defp invalid_response(), do: {:error, RequestError.exception("Expected a web JSON object")}
 
@@ -175,14 +185,9 @@ defmodule Ollixir.Web do
                 value <- values,
                 do: {name, value}
 
-          Req.new(
-            safe_opts ++
-              [
-                base_url: base_url,
-                adapter: req.adapter,
-                headers: headers
-              ]
-          )
+          Req.Request.new()
+          |> Req.Steps.attach()
+          |> Req.merge(safe_opts ++ [base_url: base_url, adapter: req.adapter, headers: headers])
         end
 
       with {:ok, req} <- ensure_auth(req, destination, api_key) do
@@ -200,7 +205,13 @@ defmodule Ollixir.Web do
         req = %{req | options: Map.delete(req.options, :auth)}
         {:ok, Req.Request.put_header(req, "authorization", "Bearer " <> api_key)}
 
-      not is_nil(api_key) ->
+      api_key == nil ->
+        req = %{req | options: Map.delete(req.options, :auth)}
+        req = Req.Request.delete_header(req, "authorization")
+
+        if cloud?, do: missing_web_key(), else: {:ok, req}
+
+      api_key != :default ->
         {:error, RequestError.exception(message: "Invalid web API key", reason: :invalid_api_key)}
 
       cloud? ->
@@ -231,17 +242,21 @@ defmodule Ollixir.Web do
         {:ok, Req.Request.put_header(req, "authorization", "Bearer " <> key)}
 
       _ ->
-        {:error,
-         RequestError.exception(
-           message: "OLLAMA_API_KEY or an explicit web API key is required for web endpoints",
-           reason: :missing_api_key
-         )}
+        missing_web_key()
     end
   end
 
+  defp missing_web_key do
+    {:error,
+     RequestError.exception(
+       message: "OLLAMA_API_KEY or an explicit web API key is required for web endpoints",
+       reason: :missing_api_key
+     )}
+  end
+
   defp origin(base_url) do
-    case URI.parse(to_string(base_url || "")) do
-      %URI{scheme: scheme, host: host, port: port} when is_binary(host) ->
+    case Ollixir.Transport.parse_http_url(base_url) do
+      {:ok, %URI{scheme: scheme, host: host, port: port}} ->
         {scheme, String.downcase(host), port}
 
       _ ->
@@ -284,13 +299,12 @@ defmodule Ollixir.Web do
   end
 
   defp normalize_base_url(url) when is_binary(url) do
-    case URI.parse(url) do
-      %URI{scheme: scheme, host: host, userinfo: nil, query: nil, fragment: nil} = uri
-      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
-        path = String.trim_trailing(uri.path || "", "/")
-        path = if String.ends_with?(path, "/api"), do: path, else: path <> "/api"
-        {:ok, URI.to_string(%{uri | path: path})}
-
+    with {:ok, %URI{query: nil, fragment: nil} = uri} <-
+           Ollixir.Transport.parse_http_url(url) do
+      path = String.trim_trailing(uri.path || "", "/")
+      path = if String.ends_with?(path, "/api"), do: path, else: path <> "/api"
+      {:ok, URI.to_string(%{uri | path: path})}
+    else
       _ ->
         {:error, RequestError.exception("Expected an absolute web base URL without credentials")}
     end

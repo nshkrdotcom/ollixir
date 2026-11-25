@@ -62,8 +62,13 @@ defmodule Ollixir.Multipart do
   defp read_file({:binary, data}), do: read_file({:binary, data, "audio.wav"})
 
   defp read_file({:binary, data, filename})
-       when is_binary(data) and byte_size(data) > 0 and is_binary(filename) and filename != "",
-       do: {:ok, data, filename}
+       when is_binary(data) and byte_size(data) > 0 and is_binary(filename) and filename != "" do
+    if String.valid?(filename) do
+      {:ok, data, filename}
+    else
+      {:error, RequestError.exception(field: :file, message: "Expected a UTF-8 filename")}
+    end
+  end
 
   defp read_file(_),
     do:

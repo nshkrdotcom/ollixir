@@ -51,7 +51,7 @@ defmodule Ollixir.SSE do
 
     case payload do
       "[DONE]" ->
-        {:stop, %{next | terminal: true}}
+        {:event, :done, next}
 
       _ ->
         case Jason.decode(payload) do
