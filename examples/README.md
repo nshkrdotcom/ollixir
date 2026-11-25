@@ -112,3 +112,22 @@ To pull everything at once:
 ```bash
 ./examples/install_models.sh
 ```
+
+### Ollixir 0.2.0 endpoints
+
+Run [release_020/run.exs](release_020/run.exs) with
+`mix run examples/release_020/run.exs -- COMMAND` from the project root.
+Set `OLLAMA_HOST` to your server and use a model already installed for each
+command. Model requests use `OLLIXIR_EXAMPLE_MODEL`.
+
+| Command | Additional inputs |
+| --- | --- |
+| `system-one` or `system-one image` | Decision model supporting ordered choice, noul and score. Set `OLLIXIR_EXAMPLE_IMAGE` to a file for the media variant. |
+| `embed` | Embedding model supporting mixed text, image and audio. Set `OLLIXIR_EXAMPLE_IMAGE` and `OLLIXIR_EXAMPLE_AUDIO` to files. |
+| `manifests` | Optionally set `OLLIXIR_EXAMPLE_RUNNER` to inspect a specific runner. |
+| `account` | Reads the server version, cloud status and account. |
+| `local-web URL` | Local server signed in for the experimental proxy. |
+| `hosted-web URL` | Hosted access using `OLLAMA_API_KEY`. |
+| `responses`, `compact`, `openai-chat`, `anthropic` | Compatible text model. |
+| `transcription` or `translation` | Set `OLLIXIR_EXAMPLE_AUDIO` to a readable audio file and select a capable model. |
+| `speech OUTPUT.wav` | Speech synthesis model and an unused output path. |

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - 2026-11-25
 
+- Isolate hosted web requests from global Req defaults when switching origins and return redirect responses without replaying requests.
+- Monitor streaming workers, bound the wait for an idle stream, and cancel lazy streams when their consumer stops.
+- Validate duplicate native fields and require route-specific provider stream terminals.
+
 ### Added
 
 - System One (`/v1/systemone`) with ordered questions, numeric answers, and

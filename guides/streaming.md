@@ -201,3 +201,10 @@ stream raises during enumeration or returns an error from its PID task.
 Native POST/DELETE requests and compatibility streams are not automatically
 retried, because an interrupted request may already have changed server state.
 Use explicit retries only when repeating the operation is safe.
+
+Lazy enumeration requests one decoded frame at a time and cancels its worker
+when the consumer halts or exits. Both stream modes use the configured
+`receive_timeout` as the maximum wait for the next decoded frame or terminal
+result. A PID receiver should consume its mailbox promptly. The returned
+`Task` remains linked to its caller and forwards chunks to the receiver
+without waiting for acknowledgements from that receiver.

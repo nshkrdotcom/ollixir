@@ -95,3 +95,7 @@ each binary chunk in order and omits `stream` from the JSON request.
 Failures use Ollixir's `RequestError`, `ConnectionError`, or `ResponseError`
 exceptions (returned as error tuples for non-streaming calls). HTTP/provider
 error bodies are retained, including nested error details.
+
+Ollama v0.40.18 accepts a string prompt for text completions. Send the
+conversation as `input` when continuing a Responses request. The stable
+converter does not restore conversation state from `previous_response_id`.

@@ -284,3 +284,7 @@ Ollixir.Image.base64?("/path/to/file")    # => false
 - [Examples](../examples/README.md) - Working multimodal examples
 - [Streaming Guide](streaming.md) - Stream image responses
 - [Structured Outputs](structured-outputs.md) - Schema with images
+
+Native generation accepts images as inputs on compatible models. The
+`width`, `height`, and `steps` fields from the older Python image-generation
+contract are outside Ollixir's native generate schema for Ollama v0.40.18.

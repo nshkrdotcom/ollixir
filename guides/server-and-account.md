@@ -48,3 +48,8 @@ and `Ollixir.web_fetch/2` hosted API methods:
 
 The server may require sign-in or disable cloud access; handle errors and do
 not assume availability. See [Cloud API](cloud-api.md) for hosted calls.
+
+For model creation on Ollama v0.40.18, use `from` or uploaded blobs referenced
+by digest in `files` and `draft_files`. The SDK retains the older `modelfile`
+and `adapters` fields for existing callers targeting older servers. Check the
+target server's creation contract when migrating those requests.

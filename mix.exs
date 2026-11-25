@@ -51,7 +51,7 @@ defmodule Ollixir.MixProject do
   defp docs do
     [
       main: "overview",
-      assets: %{"assets" => "assets"},
+      assets: docs_assets(),
       logo: "assets/ollixir.svg",
       extras: [
         {"README.md", title: "Overview", filename: "overview"},
@@ -131,6 +131,11 @@ defmodule Ollixir.MixProject do
         Internals: [Ollixir.Blob, Ollixir.Schemas, Ollixir.HTTPError]
       ]
     ]
+  end
+
+  defp docs_assets do
+    examples = Path.wildcard("examples/*") |> Enum.filter(&File.dir?/1)
+    Map.new(["assets" | examples], &{&1, Path.basename(&1)})
   end
 
   defp elixirc_paths(:test), do: ["lib", "test"]
