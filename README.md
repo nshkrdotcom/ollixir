@@ -484,6 +484,7 @@ Ollixir.web_fetch(client, url: "https://elixir-lang.org")
 ## Examples and Guides
 
 - [Examples](examples/README.md)
+- [Live release validation](guides/live-validation.md)
 - MCP Server (`examples/mcp/mcp_server.exs`) - Works with any MCP client that supports stdio (Cursor, Claude Desktop, Cline, Continue, Open WebUI)
 - [Getting Started](guides/getting-started.md)
 - [Streaming](guides/streaming.md)

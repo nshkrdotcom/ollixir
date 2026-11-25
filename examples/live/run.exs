@@ -1,4 +1,4 @@
-# Run with: mix run examples/release_020/run.exs -- COMMAND
+# Run with: mix run examples/live/run.exs -- COMMAND
 # See examples/README.md for commands and required environment variables.
 
 unless Code.ensure_loaded?(Ollixir) do

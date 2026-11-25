@@ -57,6 +57,7 @@ defmodule Ollixir.MixProject do
         {"README.md", title: "Overview", filename: "overview"},
         {"guides/getting-started.md", title: "Getting Started"},
         {"guides/ollama-setup.md", title: "Ollama Server Setup"},
+        {"guides/live-validation.md", title: "Live Release Validation"},
         {"guides/streaming.md", title: "Streaming"},
         {"guides/tools.md", title: "Tools"},
         {"guides/structured-outputs.md", title: "Structured Outputs"},

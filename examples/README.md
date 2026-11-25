@@ -113,10 +113,11 @@ To pull everything at once:
 ./examples/install_models.sh
 ```
 
-### Ollixir 0.2.0 endpoints
+### Live endpoint examples
+For guided setup and checks against real models, see [Live Release Validation](../guides/live-validation.md).
 
-Run [release_020/run.exs](release_020/run.exs) with
-`mix run examples/release_020/run.exs -- COMMAND` from the project root.
+Run [live/run.exs](live/run.exs) with
+`mix run examples/live/run.exs -- COMMAND` from the project root.
 Set `OLLAMA_HOST` to your server and use a model already installed for each
 command. Model requests use `OLLIXIR_EXAMPLE_MODEL`.
 

@@ -1,4 +1,5 @@
 # Ollama Server Setup
+For a pinned, isolated release test server, see [Live Release Validation](live-validation.md).
 
 This guide covers installing Ollama, running the local server, pulling models,
 and connecting to local or cloud endpoints from the Elixir client.
