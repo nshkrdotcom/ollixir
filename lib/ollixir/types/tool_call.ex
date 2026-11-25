@@ -6,16 +6,18 @@ defmodule Ollixir.Types.ToolCall do
   use Ollixir.Types.Base
 
   @type t :: %__MODULE__{
+          id: String.t() | nil,
           function: map() | nil
         }
 
-  defstruct [:function]
+  defstruct [:id, :function]
 
   @spec from_map(map()) :: t()
   def from_map(map) when is_map(map) do
     function = map["function"] || map[:function]
 
     %__MODULE__{
+      id: map["id"] || map[:id],
       function: normalize_function(function)
     }
   end

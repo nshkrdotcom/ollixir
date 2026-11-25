@@ -83,6 +83,8 @@ defmodule Ollixir do
       type: {:list, :string},
       doc: "*(optional)* List of Base64 encoded images (for multimodal models only)."
     ],
+    thinking: [type: :string, doc: "Prior assistant thinking."],
+    tool_call_id: [type: :string, doc: "Tool call identifier for a tool result."],
     tool_name: [
       type: :string,
       doc: "*(optional)* Tool name for tool responses."
@@ -108,6 +110,7 @@ defmodule Ollixir do
       default: "function",
       doc: "Type of tool. Defaults to `\"function\"`."
     ],
+    items: [type: :any, doc: "Additional tool items, when supported by the model."],
     function: [
       type: :map,
       keys: [
@@ -348,6 +351,41 @@ defmodule Ollixir do
     end
   end
 
+  defp validate_model_name(params) do
+    model = params[:model]
+    name = params[:name]
+
+    cond do
+      is_nil(model) and is_nil(name) ->
+        {:error, RequestError.missing_field(:model)}
+
+      model == "" or name == "" ->
+        {:error, RequestError.exception("Model name must not be empty")}
+
+      model && name && model != name ->
+        {:error, RequestError.exception("Conflicting model and name")}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp normalize_debug(params) do
+    case Keyword.pop(params, :debug_render_only) do
+      {nil, params} ->
+        {:ok, params}
+
+      {value, params} ->
+        case Keyword.fetch(params, :_debug_render_only) do
+          {:ok, other} when other != value ->
+            {:error, RequestError.exception("Conflicting debug_render_only values")}
+
+          _ ->
+            {:ok, Keyword.put(params, :_debug_render_only, value)}
+        end
+    end
+  end
+
   defp cast_fun_for(_endpoint, :map), do: nil
   defp cast_fun_for(_endpoint, nil), do: nil
   defp cast_fun_for(:chat, :struct), do: &Ollixir.Types.ChatResponse.from_map/1
@@ -357,6 +395,15 @@ defmodule Ollixir do
   defp cast_fun_for(:list_models, :struct), do: &Ollixir.Types.ListResponse.from_map/1
   defp cast_fun_for(:list_running, :struct), do: &Ollixir.Types.ProcessResponse.from_map/1
   defp cast_fun_for(:show_model, :struct), do: &Ollixir.Types.ShowResponse.from_map/1
+  defp cast_fun_for(:show_manifests, :struct), do: &Ollixir.Types.ShowManifestsResponse.from_map/1
+  defp cast_fun_for(:system_one, :struct), do: &Ollixir.Types.SystemOneResponse.from_map/1
+  defp cast_fun_for(:version, :struct), do: &Ollixir.Types.VersionResponse.from_map/1
+  defp cast_fun_for(:server_status, :struct), do: &Ollixir.Types.ServerStatusResponse.from_map/1
+  defp cast_fun_for(:whoami, :struct), do: &Ollixir.Types.UserResponse.from_map/1
+
+  defp cast_fun_for(:model_recommendations, :struct),
+    do: &Ollixir.Types.ModelRecommendationsResponse.from_map/1
+
   defp cast_fun_for(:progress, :struct), do: &Ollixir.Types.ProgressResponse.from_map/1
   defp cast_fun_for(:status, :struct), do: &Ollixir.Types.StatusResponse.from_map/1
   defp cast_fun_for(_endpoint, _format), do: nil
@@ -468,6 +515,38 @@ defmodule Ollixir do
   defp encode_message_images_one(message) when is_map(message) do
     message = if is_struct(message), do: Map.from_struct(message), else: message
 
+    message =
+      Enum.reduce(
+        ~w(role content thinking images tool_name tool_call_id tool_calls)a,
+        message,
+        fn key, acc ->
+          string_key = Atom.to_string(key)
+
+          if Map.has_key?(acc, string_key) do
+            {value, acc} = Map.pop(acc, string_key)
+            Map.put_new(acc, key, value)
+          else
+            acc
+          end
+        end
+      )
+
+    message =
+      case message[:tool_calls] do
+        calls when is_list(calls) ->
+          Map.put(
+            message,
+            :tool_calls,
+            Enum.map(calls, fn
+              %Ollixir.Types.ToolCall{} = call -> call |> Map.from_struct() |> drop_nil_values()
+              call -> call
+            end)
+          )
+
+        _ ->
+          message
+      end
+
     {key, images} =
       cond do
         Map.has_key?(message, :images) -> {:images, Map.get(message, :images)}
@@ -505,6 +584,7 @@ defmodule Ollixir do
   end
 
   schema(:chat,
+    runner: [type: :string, doc: "Select a runner variant."],
     model: [
       type: :string,
       required: true,
@@ -517,7 +597,7 @@ defmodule Ollixir do
     ],
     tools: [
       type: {:list, {:map, schema_def(:tool_def).schema}},
-      doc: "Tools for the model to use if supported (requires `stream` to be `false`)"
+      doc: "Tools for the model to use if supported."
     ],
     format: [
       type: {:or, [:string, @permissive_map]},
@@ -529,10 +609,12 @@ defmodule Ollixir do
       doc: "See [section on streaming](#module-streaming)."
     ],
     think: [
-      type: {:or, [:boolean, {:in, ["low", "medium", "high"]}]},
-      default: false,
-      doc: "Enable thinking mode. Can be true/false or level: 'low', 'medium', 'high'"
+      type: {:or, [:boolean, :string]},
+      doc: "Enable thinking mode or specify a model-defined effort name."
     ],
+    truncate: [type: :boolean, doc: "Truncate prompts that exceed context length."],
+    shift: [type: :boolean, doc: "Shift context instead of failing at its limit."],
+    _debug_render_only: [type: :boolean, doc: "Return rendered prompt debug information."],
     logprobs: [
       type: :boolean,
       doc: "Return log probabilities for generated tokens"
@@ -619,7 +701,8 @@ defmodule Ollixir do
     {format, params} = pop_response_format(params)
     cast_fun = cast_fun_for(:chat, format)
 
-    with {:ok, params} <- normalize_options(params),
+    with {:ok, params} <- normalize_debug(params),
+         {:ok, params} <- normalize_options(params),
          {:ok, params} <- normalize_tools(params),
          {:ok, params} <- normalize_messages_images(params),
          {:ok, params} <- validate_params(params, schema_def(:chat)) do
@@ -633,6 +716,7 @@ defmodule Ollixir do
   end
 
   schema(:completion,
+    runner: [type: :string, doc: "Select a runner variant."],
     model: [
       type: :string,
       required: true,
@@ -679,10 +763,12 @@ defmodule Ollixir do
       doc: "See [section on streaming](#module-streaming)."
     ],
     think: [
-      type: {:or, [:boolean, {:in, ["low", "medium", "high"]}]},
-      default: false,
-      doc: "Enable thinking mode. Can be true/false or level: 'low', 'medium', 'high'"
+      type: {:or, [:boolean, :string]},
+      doc: "Enable thinking mode or specify a model-defined effort name."
     ],
+    truncate: [type: :boolean, doc: "Truncate prompts that exceed context length."],
+    shift: [type: :boolean, doc: "Shift context instead of failing at its limit."],
+    _debug_render_only: [type: :boolean, doc: "Return rendered prompt debug information."],
     logprobs: [
       type: :boolean,
       doc: "Return log probabilities for generated tokens"
@@ -749,7 +835,8 @@ defmodule Ollixir do
     {format, params} = pop_response_format(params)
     cast_fun = cast_fun_for(:completion, format)
 
-    with {:ok, params} <- normalize_options(params),
+    with {:ok, params} <- normalize_debug(params),
+         {:ok, params} <- normalize_options(params),
          {:ok, params} <- normalize_images(params),
          {:ok, params} <- validate_params(params, schema_def(:completion)) do
       result =
@@ -770,8 +857,19 @@ defmodule Ollixir do
   end
 
   schema(:create_model,
-    name: [type: :string, required: true, doc: "Name for the new model"],
+    model: [type: :string, doc: "Name for the new model"],
+    name: [type: :string, doc: "Legacy model name"],
     modelfile: [type: :string, doc: "Modelfile contents"],
+    draft_quantize: [type: :string, doc: "Draft weight quantization"],
+    draft_files: [type: {:map, :string, :string}, doc: "Draft files and digests"],
+    list: [type: {:list, :string}, doc: "Local tags for a manifest list"],
+    remote_host: [type: :string, doc: "Upstream Ollama host"],
+    renderer: [type: :string, doc: "Prompt renderer"],
+    parser: [type: :string, doc: "Output parser"],
+    requires: [type: :string, doc: "Minimum Ollama version"],
+    capabilities: [type: {:list, :string}, doc: "Additional capabilities"],
+    info: [type: @permissive_map, doc: "Additional model metadata"],
+    quantization: [type: :string, doc: "Legacy quantization field"],
     from: [type: :string, doc: "Base model to create from"],
     files: [type: {:map, :string, :string}, doc: "Custom files to include"],
     adapters: [type: {:map, :string, :string}, doc: "LoRA adapter files"],
@@ -829,7 +927,8 @@ defmodule Ollixir do
     cast_fun = cast_fun_for(:progress, format)
 
     with {:ok, params} <- normalize_messages_images(params),
-         {:ok, params} <- validate_params(params, schema_def(:create_model)) do
+         {:ok, params} <- validate_params(params, schema_def(:create_model)),
+         :ok <- validate_model_name(params) do
       parameters =
         case params[:parameters] do
           list when is_list(list) -> Enum.into(list, %{})
@@ -837,19 +936,9 @@ defmodule Ollixir do
         end
 
       body =
-        %{}
-        |> Map.put(:name, params[:name])
-        |> maybe_put(:modelfile, params[:modelfile])
-        |> maybe_put(:from, params[:from])
-        |> maybe_put(:files, params[:files])
-        |> maybe_put(:adapters, params[:adapters])
-        |> maybe_put(:template, params[:template])
-        |> maybe_put(:license, params[:license])
-        |> maybe_put(:system, params[:system])
+        params
+        |> Map.new()
         |> maybe_put(:parameters, parameters)
-        |> maybe_put(:messages, params[:messages])
-        |> maybe_put(:quantize, params[:quantize])
-        |> maybe_put(:stream, params[:stream])
 
       result =
         client
@@ -956,6 +1045,7 @@ defmodule Ollixir do
   end
 
   schema(:load_model,
+    runner: [type: :string, doc: "Select a runner variant."],
     model: [
       type: :string,
       required: true,
@@ -1045,9 +1135,15 @@ defmodule Ollixir do
   end
 
   schema(:show_model,
+    runner: [type: :string, doc: "Select a runner variant."],
+    model: [type: :string, doc: "Model name"],
+    all_manifests: [type: :boolean, doc: "Return every runner manifest."],
+    verbose: [type: :boolean, doc: "Include verbose model metadata."],
+    system: [type: :string, doc: "Override system prompt."],
+    template: [type: :string, doc: "Legacy template override."],
+    options: [type: @permissive_map, doc: "Model options."],
     name: [
       type: :string,
-      required: true,
       doc: "Name of the model to show."
     ]
   )
@@ -1093,9 +1189,12 @@ defmodule Ollixir do
   @spec show_model(client(), keyword()) :: response()
   def show_model(%__MODULE__{} = client, params) when is_list(params) do
     {format, params} = pop_response_format(params)
-    cast_fun = cast_fun_for(:show_model, format)
+    endpoint = if params[:all_manifests], do: :show_manifests, else: :show_model
+    cast_fun = cast_fun_for(endpoint, format)
 
-    with {:ok, params} <- validate_params(params, schema_def(:show_model)) do
+    with {:ok, params} <- normalize_options(params),
+         {:ok, params} <- validate_params(params, schema_def(:show_model)),
+         :ok <- validate_model_name(params) do
       client
       |> req(:post, "/show", json: Enum.into(params, %{}))
       |> res()
@@ -1188,9 +1287,9 @@ defmodule Ollixir do
   end
 
   schema(:delete_model,
+    model: [type: :string, doc: "Model name"],
     name: [
       type: :string,
-      required: true,
       doc: "Name of the model to delete."
     ]
   )
@@ -1229,7 +1328,8 @@ defmodule Ollixir do
     {format, params} = pop_response_format(params)
     cast_fun = cast_fun_for(:status, format)
 
-    with {:ok, params} <- validate_params(params, schema_def(:delete_model)) do
+    with {:ok, params} <- validate_params(params, schema_def(:delete_model)),
+         :ok <- validate_model_name(params) do
       result =
         client
         |> req(:delete, "/delete", json: Enum.into(params, %{}))
@@ -1256,9 +1356,10 @@ defmodule Ollixir do
   end
 
   schema(:pull_model,
+    runner: [type: :string, doc: "Select a runner variant."],
+    model: [type: :string, doc: "Model name"],
     name: [
       type: :string,
-      required: true,
       doc: "Name of the model to pull."
     ],
     insecure: [
@@ -1310,7 +1411,8 @@ defmodule Ollixir do
     {format, params} = pop_response_format(params)
     cast_fun = cast_fun_for(:progress, format)
 
-    with {:ok, params} <- validate_params(params, schema_def(:pull_model)) do
+    with {:ok, params} <- validate_params(params, schema_def(:pull_model)),
+         :ok <- validate_model_name(params) do
       result =
         client
         |> req(:post, "/pull", json: Enum.into(params, %{}), cast: cast_fun)
@@ -1329,9 +1431,9 @@ defmodule Ollixir do
   end
 
   schema(:push_model,
+    model: [type: :string, doc: "Model name"],
     name: [
       type: :string,
-      required: true,
       doc: "Name of the model to pull."
     ],
     insecure: [
@@ -1384,7 +1486,8 @@ defmodule Ollixir do
     {format, params} = pop_response_format(params)
     cast_fun = cast_fun_for(:progress, format)
 
-    with {:ok, params} <- validate_params(params, schema_def(:push_model)) do
+    with {:ok, params} <- validate_params(params, schema_def(:push_model)),
+         :ok <- validate_model_name(params) do
       result =
         client
         |> req(:post, "/push", json: Enum.into(params, %{}), cast: cast_fun)
@@ -1506,15 +1609,16 @@ defmodule Ollixir do
   end
 
   schema(:embed,
+    runner: [type: :string, doc: "Select a runner variant."],
     model: [
       type: :string,
       required: true,
       doc: "The name of the model used to generate the embeddings."
     ],
     input: [
-      type: {:or, [:string, {:list, :string}]},
+      type: {:or, [:string, @permissive_map, {:list, {:or, [:string, @permissive_map]}}]},
       required: true,
-      doc: "Text or list of text to generate embeddings for."
+      doc: "Text, a multimodal item, or a mixed list of items."
     ],
     truncate: [
       type: :boolean,
@@ -1575,7 +1679,8 @@ defmodule Ollixir do
     {format, params} = pop_response_format(params)
     cast_fun = cast_fun_for(:embed, format)
 
-    with {:ok, params} <- normalize_options(params),
+    with {:ok, params} <- Ollixir.EmbeddingInput.normalize(params),
+         {:ok, params} <- normalize_options(params),
          {:ok, params} <- validate_params(params, schema_def(:embed)) do
       client
       |> req(:post, "/embed", json: Enum.into(params, %{}))
@@ -1585,6 +1690,7 @@ defmodule Ollixir do
   end
 
   schema(:embeddings,
+    runner: [type: :string, doc: "Select a runner variant."],
     model: [
       type: :string,
       required: true,
@@ -1694,6 +1800,129 @@ defmodule Ollixir do
     Web.fetch!(client, params)
   end
 
+  schema(:system_one,
+    model: [type: :string, required: true, doc: "Decision model name."],
+    runner: [type: :string, doc: "Runner variant."],
+    state: [type: :any, required: true, doc: "String, JSON object, or array to evaluate."],
+    images: [type: {:list, :string}, doc: "Optional images for a compatible model."],
+    videos: [type: {:list, :any}, doc: "Reserved; video support is model/server dependent."],
+    questions: [type: :any, required: true, doc: "Named questions (map or ordered pairs)."],
+    keep_alive: [type: {:or, [:integer, :string]}, doc: "Model keep-alive duration."]
+  )
+
+  @doc """
+  Ask a decision model typed questions about a state via `/v1/systemone`.
+
+  #{doc(:system_one)}
+
+      Ollixir.system_one(client,
+        model: "decision-model",
+        state: "The parcel arrived yesterday.",
+        questions: [{"delivered", %{type: "noul", instructions: "Was it delivered?"}}]
+      )
+
+  Questions are encoded as an object; ordered pairs preserve request order.
+  The endpoint is non-streaming. Video is not supported by current local runners.
+  """
+  @spec system_one(client(), keyword()) :: response()
+  def system_one(%__MODULE__{} = client, params) when is_list(params) do
+    {format, params} = pop_response_format(params)
+
+    with {:ok, params} <- normalize_images(params),
+         {:ok, params} <- validate_params(params, schema_def(:system_one)),
+         {:ok, params} <- Ollixir.SystemOne.normalize(params) do
+      client
+      |> Ollixir.Transport.request(:post, "/v1/systemone", json: Map.new(params))
+      |> apply_cast(cast_fun_for(:system_one, format))
+    end
+  end
+
+  @doc """
+  Show all manifests for a model. With `response_format: :struct`, returns
+  `Ollixir.Types.ShowManifestsResponse` rather than a single show response.
+  """
+  @spec show_manifests(client(), keyword()) :: response()
+  def show_manifests(client, params),
+    do: show_model(client, Keyword.put(params, :all_manifests, true))
+
+  @doc "Check the server root with HEAD. Returns `{:ok, true}` on success."
+  @spec heartbeat(client()) :: response()
+  def heartbeat(client), do: successful_request(client, :head, "/")
+
+  @doc "Get the Ollama server version (`GET /api/version`)."
+  @spec version(client(), keyword()) :: response()
+  def version(client, opts \\ []), do: server_get(client, "/api/version", :version, opts)
+
+  @doc "Get the server cloud configuration (`GET /api/status`)."
+  @spec status(client(), keyword()) :: response()
+  def status(client, opts \\ []), do: server_get(client, "/api/status", :server_status, opts)
+
+  @doc "Alias for `status/2`."
+  def cloud_status(client, opts \\ []), do: status(client, opts)
+
+  @doc "Alias matching the upstream Go client's experimental cloud status operation."
+  def cloud_status_experimental(client, opts \\ []), do: status(client, opts)
+
+  @doc "Get the account signed into the server (`POST /api/me`)."
+  @spec whoami(client(), keyword()) :: response()
+  def whoami(client, opts \\ []) do
+    {format, _opts} = pop_response_format(opts)
+
+    client
+    |> Ollixir.Transport.request(:post, "/api/me")
+    |> apply_cast(cast_fun_for(:whoami, format))
+  end
+
+  @doc "Alias for `whoami/2`."
+  def me(client, opts \\ []), do: whoami(client, opts)
+
+  @doc "Get the signed-in server account's balance as a raw response map."
+  def balance(client), do: Ollixir.Transport.request(client, :get, "/api/balance")
+
+  @doc "Get the signed-in server account's usage as a raw response map."
+  def usage(client), do: Ollixir.Transport.request(client, :get, "/api/usage")
+
+  @doc "Sign the server account out. This changes server state."
+  def signout(client), do: successful_request(client, :post, "/api/signout")
+
+  @doc "Disconnect using an already encoded public-key identifier."
+  def disconnect(client, encoded_key) when is_binary(encoded_key) and encoded_key != "" do
+    segment = URI.encode(encoded_key, &URI.char_unreserved?/1)
+    successful_request(client, :delete, "/api/user/keys/" <> segment)
+  end
+
+  def disconnect(_client, _key), do: {:error, RequestError.missing_field(:encoded_key)}
+
+  @doc "Get experimental model recommendations from the configured server."
+  def model_recommendations(client, opts \\ []),
+    do:
+      server_get(client, "/api/experimental/model-recommendations", :model_recommendations, opts)
+
+  @doc "Alias for `model_recommendations/2`."
+  def model_recommendations_experimental(client, opts \\ []),
+    do: model_recommendations(client, opts)
+
+  @doc "Search the web through the configured server's experimental proxy."
+  def web_search_experimental(client, params), do: Web.search_experimental(client, params)
+
+  @doc "Fetch a URL through the configured server's experimental proxy."
+  def web_fetch_experimental(client, params), do: Web.fetch_experimental(client, params)
+
+  defp server_get(client, path, endpoint, opts) do
+    {format, _opts} = pop_response_format(opts)
+
+    client
+    |> Ollixir.Transport.request(:get, path)
+    |> apply_cast(cast_fun_for(endpoint, format))
+  end
+
+  defp successful_request(client, method, path) do
+    case Ollixir.Transport.request(client, method, path, retry: false) do
+      {:ok, _} -> {:ok, true}
+      error -> error
+    end
+  end
+
   @doc false
   def __schemas__, do: @schemas
 
@@ -1701,25 +1930,38 @@ defmodule Ollixir do
   @spec req(client(), atom(), Req.url(), keyword()) :: req_response()
   defp req(%__MODULE__{req: req}, method, url, opts \\ []) do
     {cast_fun, opts} = Keyword.pop(opts, :cast)
+    streaming_endpoint = url in ["/chat", "/generate", "/create", "/pull", "/push"]
     opts = Keyword.merge(opts, method: method, url: normalize_url(url))
     stream_opt = get_in(opts, [:json, :stream])
-    dest = if is_pid(stream_opt), do: stream_opt, else: self()
 
     cond do
       stream_opt ->
         opts =
           opts
           |> Keyword.update!(:json, &Map.put(&1, :stream, true))
-          |> Keyword.put(:into, stream_handler(dest, cast_fun))
+          |> Keyword.merge(decode_body: false, retry: false, compressed: false)
 
-        task = Task.async(fn -> req |> Req.request(opts) |> res() end)
+        work = fn dest -> native_stream(req, opts, dest, cast_fun) end
 
         case stream_opt do
-          true -> {:ok, Stream.resource(fn -> task end, &stream_next/1, &stream_end/1)}
-          _ -> {:ok, task}
+          true ->
+            stream =
+              Stream.resource(
+                fn ->
+                  dest = self()
+                  {Task.async(fn -> work.(dest) end), false}
+                end,
+                &stream_next/1,
+                &stream_end/1
+              )
+
+            {:ok, stream}
+
+          pid ->
+            {:ok, Task.async(fn -> work.(pid) end)}
         end
 
-      Keyword.get(opts, :json) |> is_map() ->
+      streaming_endpoint and is_map(Keyword.get(opts, :json)) ->
         opts = Keyword.update!(opts, :json, &Map.put(&1, :stream, false))
         Req.request(req, opts)
 
@@ -1782,68 +2024,131 @@ defmodule Ollixir do
 
   defp res_status({:error, error}), do: {:error, RequestError.exception(inspect(error))}
 
-  # Returns a callback to handle streaming responses
-  @spec stream_handler(pid(), function() | nil) :: fun()
-  defp stream_handler(pid, cast_fun) do
-    fn {:data, data}, {req, res} ->
-      with {:ok, data} <- Jason.decode(data) do
-        payload = if is_function(cast_fun), do: cast_fun.(data), else: data
-        Process.send(pid, {self(), {:data, payload}}, [])
-        {:cont, {req, stream_merge(res, data)}}
-      else
-        _ -> {:cont, {req, res}}
-      end
+  # Native streaming uses NDJSON, not one JSON object per transport chunk.
+  defp native_stream(req, opts, dest, cast_fun) do
+    handler = fn {:data, chunk}, {request, response} ->
+      {:cont, {request, native_chunk(response, chunk, dest, cast_fun)}}
     end
-  end
 
-  # Conditionally merges streaming responses for chat and completion endpoints
-  @spec stream_merge(Req.Response.t(), map()) :: Req.Response.t()
-  defp stream_merge(%Req.Response{body: body} = res, %{"done" => _} = data)
-       when is_map(body) do
-    update_in(res.body, fn body ->
-      Map.merge(body, data, fn
-        "response", prev, next ->
-          prev <> next
-
-        "message", prev, next ->
-          acc = update_in(prev, ["content"], &(&1 <> next["content"]))
-
-          if Map.has_key?(prev, "thinking") and Map.has_key?(next, "thinking") do
-            update_in(acc, ["thinking"], &(&1 <> next["thinking"]))
+    case Req.request(req, Keyword.put(opts, :into, handler)) do
+      {:ok, %{status: status} = response} when status in 200..299 ->
+        response =
+          if not Map.has_key?(response.private, :ollixir_ndjson) and is_binary(response.body) do
+            native_chunk(%{response | body: ""}, response.body, dest, cast_fun)
           else
-            acc
+            response
           end
 
-        # Enum.reduce(["content", "thinking"], prev, fn key, acc ->
-        #  update_in(acc, [key], & &1 <> Map.get(next, key, ""))
-        # end)
-        _key, _prev, next ->
-          next
-      end)
-    end)
-  end
+        buffer = Map.get(response.private, :ollixir_ndjson, "")
+        response = native_line(response, buffer, dest, cast_fun)
 
-  defp stream_merge(res, data), do: put_in(res.body, data)
+        case response.private[:ollixir_ndjson_error] do
+          nil -> res({:ok, response})
+          error -> {:error, error}
+        end
 
-  # Recieve messages into a stream
-  defp stream_next(%Task{pid: pid, ref: ref} = task) do
-    receive do
-      {^pid, {:data, data}} ->
-        {[data], task}
-
-      {^ref, {:ok, %{}}} ->
-        {:halt, task}
-
-      {^ref, {:error, error}} ->
-        raise error
-
-      {:DOWN, _ref, _, _pid, _reason} ->
-        {:halt, task}
-    after
-      30_000 -> {:halt, task}
+      result ->
+        res(result)
     end
   end
 
-  # Tidy up when the streaming request is finished
-  defp stream_end(%Task{ref: ref}), do: Process.demonitor(ref, [:flush])
+  defp native_chunk(%{status: status} = response, chunk, _dest, _cast_fun)
+       when status not in 200..299 do
+    %{response | body: (response.body || "") <> chunk}
+  end
+
+  defp native_chunk(response, chunk, dest, cast_fun) do
+    buffer = Map.get(response.private, :ollixir_ndjson, "")
+    {buffer, lines} = List.pop_at(:binary.split(buffer <> chunk, "\n", [:global]), -1)
+    response = %{response | private: Map.put(response.private, :ollixir_ndjson, buffer)}
+    Enum.reduce(lines, response, &native_line(&2, &1, dest, cast_fun))
+  end
+
+  defp native_line(response, line, dest, cast_fun) do
+    cond do
+      response.private[:ollixir_ndjson_error] ->
+        response
+
+      line in ["", "\r", " ", "\t"] ->
+        response
+
+      true ->
+        case Jason.decode(line) do
+          {:ok, %{"error" => _} = data} ->
+            native_error(response, ResponseError.exception(status: response.status, body: data))
+
+          {:ok, data} when is_map(data) ->
+            payload = if is_function(cast_fun), do: cast_fun.(data), else: data
+            send(dest, {self(), {:data, payload}})
+            %{response | body: merge_native(response.body, data)}
+
+          _ ->
+            native_error(response, RequestError.exception("Invalid NDJSON response"))
+        end
+    end
+  end
+
+  defp native_error(response, error) do
+    %{response | private: Map.put(response.private, :ollixir_ndjson_error, error)}
+  end
+
+  defp merge_native(body, %{"done" => _} = data) when is_map(body),
+    do: Map.merge(body, data, &merge_native_field/3)
+
+  defp merge_native(_body, data), do: data
+
+  defp merge_native_field(key, prev, next)
+       when key in ["response", "content", "thinking"] and is_binary(prev) and is_binary(next),
+       do: prev <> next
+
+  defp merge_native_field("message", prev, next) when is_map(prev) and is_map(next),
+    do: Map.merge(prev, next, &merge_native_field/3)
+
+  defp merge_native_field(key, prev, next)
+       when key in ["tool_calls", "logprobs"] and is_list(prev) and is_list(next),
+       do: prev ++ next
+
+  defp merge_native_field(_key, _prev, next), do: next
+
+  defp stream_next({%Task{pid: pid, ref: ref} = task, false}) do
+    receive do
+      {^pid, {:data, data}} ->
+        {[data], {task, false}}
+
+      {^ref, {:ok, _}} ->
+        Process.demonitor(ref, [:flush])
+        {:halt, {task, true}}
+
+      {^ref, {:error, error}} ->
+        Process.demonitor(ref, [:flush])
+        raise error
+
+      {:DOWN, ^ref, :process, ^pid, reason} ->
+        raise RequestError.exception("Stream task stopped: #{inspect(reason)}")
+    end
+  end
+
+  defp stream_end({%Task{pid: pid} = task, finished}) do
+    unless finished do
+      if Process.alive?(pid), do: Task.shutdown(task, :brutal_kill)
+      Process.demonitor(task.ref, [:flush])
+      ref = task.ref
+
+      receive do
+        {^ref, _} -> :ok
+      after
+        0 -> :ok
+      end
+    end
+
+    drain_stream(pid)
+  end
+
+  defp drain_stream(pid) do
+    receive do
+      {^pid, {:data, _}} -> drain_stream(pid)
+    after
+      0 -> :ok
+    end
+  end
 end

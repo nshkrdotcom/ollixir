@@ -150,3 +150,10 @@ end
 
 - [Streaming Guide](streaming.md) - Real-time thinking output
 - [Examples](../examples/README.md) - Working thinking examples
+
+## Default thinking in 0.2.0
+
+If `think` is omitted, Ollixir no longer inserts `think: false`; the model and
+server choose their default. To explicitly disable thinking, pass `think: false`.
+Native messages can retain `thinking` and `tool_call_id` when passed back in a
+conversation. Do not assume all models support a given thinking intensity.

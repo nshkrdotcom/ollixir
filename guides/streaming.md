@@ -178,3 +178,17 @@ typed structs instead of maps:
     │ self()     │  │ true       │
     └────────────┘  └────────────┘
 ```
+
+## Framing and compatibility clients
+
+Native Ollama uses newline-delimited JSON. Ollixir 0.2.0 buffers partial lines
+across HTTP chunks and supports multiple JSON records per chunk. The native
+PID task merges text, thinking, tool-call and logprob chunks in its final
+response. Enumerable mode emits individual chunks and raises on stream errors.
+Stopping enumeration early shuts down its worker.
+
+`Ollixir.OpenAI` and `Ollixir.Anthropic` use SSE instead of NDJSON. Their PID
+tasks finish with `{:ok, :done}` (or an error), not a merged provider object.
+Speech is binary rather than SSE. See the
+[OpenAI](openai-compatibility.md) and [Anthropic](anthropic-compatibility.md)
+compatibility guides for complete examples.

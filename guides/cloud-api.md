@@ -292,3 +292,11 @@ mix test --include cloud_api
 - [Getting Started](getting-started.md) - Basic setup
 - [Tools Guide](tools.md) - Using web tools in agents
 - [Ollama Server Setup](ollama-setup.md) - Local and cloud setup
+
+## Configured-server cloud operations
+
+Ollixir 0.2.0 also supports experimental web search/fetch through the configured
+server (`web_search_experimental/2`, `web_fetch_experimental/2`). These are
+separate from the hosted `web_search/2` and `web_fetch/2` calls described above.
+Use the [Server and Account guide](server-and-account.md) for account status,
+usage, balance, sign-in errors and experimental routes.

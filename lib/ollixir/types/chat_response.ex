@@ -8,6 +8,10 @@ defmodule Ollixir.Types.ChatResponse do
   alias Ollixir.Types.{Logprob, Message}
 
   @type t :: %__MODULE__{
+          debug_info: map() | nil,
+          prompt_eval_cached_count: integer() | nil,
+          remote_host: String.t() | nil,
+          remote_model: String.t() | nil,
           model: String.t() | nil,
           created_at: String.t() | nil,
           message: Message.t() | nil,
@@ -23,6 +27,10 @@ defmodule Ollixir.Types.ChatResponse do
         }
 
   defstruct [
+    :debug_info,
+    :prompt_eval_cached_count,
+    :remote_host,
+    :remote_model,
     :model,
     :created_at,
     :message,
@@ -40,6 +48,10 @@ defmodule Ollixir.Types.ChatResponse do
   @spec from_map(map()) :: t()
   def from_map(map) when is_map(map) do
     %__MODULE__{
+      debug_info: map["_debug_info"],
+      prompt_eval_cached_count: map["prompt_eval_cached_count"],
+      remote_host: map["remote_host"],
+      remote_model: map["remote_model"],
       model: map["model"],
       created_at: map["created_at"],
       message: parse_message(map["message"]),

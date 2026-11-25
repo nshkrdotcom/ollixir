@@ -249,3 +249,28 @@ embedding = response["embedding"]
 
 - [Examples](../examples/README.md) - Working embedding examples
 - [Cheatsheet](cheatsheet.md) - Quick reference
+
+## Multimodal embeddings (0.2.0)
+
+For a compatible model, `Ollixir.embed/2` accepts strings, multimodal maps,
+or mixed lists. A multimodal map may contain `text`, `image`, and `audio`.
+Use tagged media inputs to avoid ambiguity between a path, bytes, and Base64:
+
+```elixir
+{:ok, result} = Ollixir.embed(client,
+  model: "your-multimodal-embedding-model",
+  input: [
+    "Plain text",
+    %{text: "A photo", image: {:file, "photo.png"}},
+    %{audio: {:file, "recording.wav"}}
+  ],
+  runner: "your-runner"
+)
+```
+
+`{:binary, bytes}` encodes raw media once; `{:base64, encoded}` preserves
+already encoded data. Plain image inputs use `Ollixir.Image`; plain audio
+inputs may be file paths, recognized raw bytes, or Base64. Unsupported keys,
+invalid media and empty multimodal items return request errors before HTTP.
+Video embedding input is not supported. The server/model determines supported
+modalities and dimensionality. Legacy `embeddings/2` remains text-oriented.

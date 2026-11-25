@@ -7,7 +7,7 @@ defmodule Ollixir.MixProject do
       name: "Ollixir",
       description: "Ollixir is a complete Elixir client library for the Ollama API.",
       source_url: "https://github.com/nshkrdotcom/ollixir",
-      version: "0.1.1",
+      version: "0.2.0",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -28,7 +28,7 @@ defmodule Ollixir.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger]
+      extra_applications: [:logger, :crypto]
     ]
   end
 
@@ -65,6 +65,10 @@ defmodule Ollixir.MixProject do
         {"guides/multimodal.md", title: "Multimodal"},
         {"guides/huggingface.md", title: "HuggingFace Integration"},
         {"guides/cloud-api.md", title: "Cloud API"},
+        {"guides/system-one.md", title: "System One"},
+        {"guides/server-and-account.md", title: "Server and Account"},
+        {"guides/openai-compatibility.md", title: "OpenAI Compatibility"},
+        {"guides/anthropic-compatibility.md", title: "Anthropic Compatibility"},
         {"guides/cheatsheet.md", title: "Cheatsheet"},
         {"examples/README.md", title: "Examples", filename: "examples"},
         {"CHANGELOG.md", title: "Changelog"},
@@ -77,7 +81,7 @@ defmodule Ollixir.MixProject do
         Project: ["CHANGELOG.md", "LICENSE"]
       ],
       groups_for_modules: [
-        Client: [Ollixir],
+        Client: [Ollixir, Ollixir.OpenAI, Ollixir.Anthropic],
         Errors: [
           Ollixir.ConnectionError,
           Ollixir.RequestError,
@@ -85,7 +89,13 @@ defmodule Ollixir.MixProject do
           Ollixir.Errors,
           Ollixir.Retry
         ],
-        Helpers: [Ollixir.Image, Ollixir.Tool, Ollixir.Options, Ollixir.Options.Presets],
+        Helpers: [
+          Ollixir.Image,
+          Ollixir.Tool,
+          Ollixir.Options,
+          Ollixir.Options.Presets,
+          Ollixir.SystemOne
+        ],
         HuggingFace: [Ollixir.HuggingFace],
         Web: [
           Ollixir.Web,
@@ -110,7 +120,13 @@ defmodule Ollixir.MixProject do
           Ollixir.Types.ShowResponse,
           Ollixir.Types.ProcessResponse,
           Ollixir.Types.ProgressResponse,
-          Ollixir.Types.StatusResponse
+          Ollixir.Types.StatusResponse,
+          Ollixir.Types.SystemOneResponse,
+          Ollixir.Types.ShowManifestsResponse,
+          Ollixir.Types.VersionResponse,
+          Ollixir.Types.ServerStatusResponse,
+          Ollixir.Types.UserResponse,
+          Ollixir.Types.ModelRecommendationsResponse
         ],
         Internals: [Ollixir.Blob, Ollixir.Schemas, Ollixir.HTTPError]
       ]

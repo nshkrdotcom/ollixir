@@ -8,6 +8,10 @@ defmodule Ollixir.Types.ModelInfo do
   alias Ollixir.Types.ModelDetails
 
   @type t :: %__MODULE__{
+          capabilities: [String.t()] | nil,
+          remote_host: String.t() | nil,
+          remote_model: String.t() | nil,
+          runner: String.t() | nil,
           name: String.t() | nil,
           model: String.t() | nil,
           modified_at: String.t() | nil,
@@ -20,6 +24,10 @@ defmodule Ollixir.Types.ModelInfo do
         }
 
   defstruct [
+    :capabilities,
+    :remote_host,
+    :remote_model,
+    :runner,
     :name,
     :model,
     :modified_at,
@@ -33,6 +41,10 @@ defmodule Ollixir.Types.ModelInfo do
 
   def from_map(map) do
     %__MODULE__{
+      capabilities: map["capabilities"],
+      remote_host: map["remote_host"],
+      remote_model: map["remote_model"],
+      runner: map["runner"],
       name: map["name"],
       model: map["model"],
       modified_at: map["modified_at"],

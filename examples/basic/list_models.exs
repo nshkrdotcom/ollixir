@@ -4,7 +4,7 @@ ollixir_dep =
   if File.exists?(Path.join(root, "mix.exs")) do
     {:ollixir, path: root}
   else
-    {:ollixir, "~> 0.10.0"}
+    {:ollixir, "~> 0.2.0"}
   end
 
 if Code.ensure_loaded?(Mix.Project) &&

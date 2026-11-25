@@ -35,7 +35,7 @@ This guide walks you through your first steps with the Ollixir Elixir client.
 ```elixir
 # mix.exs
 def deps do
-  [{:ollixir, "~> 0.1.1"}]
+  [{:ollixir, "~> 0.2.0"}]
 end
 ```
 
@@ -88,3 +88,12 @@ IO.puts(response.message.content)
 - [Cloud API](cloud-api.md) - Web search and cloud models
 - [Ollama Server Setup](ollama-setup.md) - Local and cloud configuration
 - [Examples](../examples/README.md) - Working code samples
+
+## Compatibility target
+
+Ollixir 0.2.0 targets Ollama v0.40.18. The actual available models, modalities,
+account operations and experimental routes depend on the configured server.
+Use `Ollixir.version(client)` to inspect the server version and
+`Ollixir.heartbeat(client)` to check connectivity. For provider-compatible
+protocols, use the [OpenAI](openai-compatibility.md) or
+[Anthropic](anthropic-compatibility.md) clients.

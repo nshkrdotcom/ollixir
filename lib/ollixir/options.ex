@@ -23,12 +23,14 @@ defmodule Ollixir.Options do
     :use_mlock,
     :embedding_only,
     :num_thread,
+    :draft_num_predict,
     # Runtime options
     :num_keep,
     :seed,
     :num_predict,
     :top_k,
     :top_p,
+    :min_p,
     :tfs_z,
     :typical_p,
     :repeat_last_n,
@@ -58,12 +60,14 @@ defmodule Ollixir.Options do
           use_mlock: boolean() | nil,
           embedding_only: boolean() | nil,
           num_thread: pos_integer() | nil,
+          draft_num_predict: integer() | nil,
           # Runtime
           num_keep: integer() | nil,
           seed: integer() | nil,
           num_predict: integer() | nil,
           top_k: non_neg_integer() | nil,
           top_p: float() | nil,
+          min_p: float() | nil,
           tfs_z: float() | nil,
           typical_p: float() | nil,
           repeat_last_n: integer() | nil,
@@ -140,6 +144,19 @@ defmodule Ollixir.Options do
   def top_p(%__MODULE__{} = opts, value)
       when is_number(value) and value >= 0.0 and value <= 1.0 do
     %{opts | top_p: value}
+  end
+
+  @doc "Set minimum relative token probability (0.0-1.0)."
+  @spec min_p(t(), float()) :: t()
+  def min_p(%__MODULE__{} = opts, value)
+      when is_number(value) and value >= 0.0 and value <= 1.0 do
+    %{opts | min_p: value}
+  end
+
+  @doc "Set the number of draft tokens for speculative decoding."
+  @spec draft_num_predict(t(), integer()) :: t()
+  def draft_num_predict(%__MODULE__{} = opts, value) when is_integer(value) do
+    %{opts | draft_num_predict: value}
   end
 
   @doc """
@@ -279,6 +296,12 @@ defmodule Ollixir.Options do
 
   defp validate_option(:top_p, v) when is_number(v) and v >= 0.0 and v <= 1.0, do: :ok
   defp validate_option(:top_p, v), do: {:error, {:invalid_top_p, v}}
+
+  defp validate_option(:min_p, v) when is_number(v) and v >= 0.0 and v <= 1.0, do: :ok
+  defp validate_option(:min_p, v), do: {:error, {:invalid_min_p, v}}
+
+  defp validate_option(:draft_num_predict, v) when is_integer(v), do: :ok
+  defp validate_option(:draft_num_predict, v), do: {:error, {:invalid_draft_num_predict, v}}
 
   defp validate_option(:seed, v) when is_integer(v), do: :ok
   defp validate_option(:seed, v), do: {:error, {:invalid_seed, v}}

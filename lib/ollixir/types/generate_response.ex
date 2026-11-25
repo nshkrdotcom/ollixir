@@ -8,6 +8,11 @@ defmodule Ollixir.Types.GenerateResponse do
   alias Ollixir.Types.Logprob
 
   @type t :: %__MODULE__{
+          tool_calls: [Ollixir.Types.ToolCall.t()] | nil,
+          debug_info: map() | nil,
+          prompt_eval_cached_count: integer() | nil,
+          remote_host: String.t() | nil,
+          remote_model: String.t() | nil,
           model: String.t() | nil,
           created_at: String.t() | nil,
           response: String.t(),
@@ -25,6 +30,11 @@ defmodule Ollixir.Types.GenerateResponse do
         }
 
   defstruct [
+    :tool_calls,
+    :debug_info,
+    :prompt_eval_cached_count,
+    :remote_host,
+    :remote_model,
     :model,
     :created_at,
     :thinking,
@@ -44,6 +54,11 @@ defmodule Ollixir.Types.GenerateResponse do
   @spec from_map(map()) :: t()
   def from_map(map) when is_map(map) do
     %__MODULE__{
+      tool_calls: parse_tool_calls(map["tool_calls"]),
+      debug_info: map["_debug_info"],
+      prompt_eval_cached_count: map["prompt_eval_cached_count"],
+      remote_host: map["remote_host"],
+      remote_model: map["remote_model"],
       model: map["model"],
       created_at: map["created_at"],
       response: map["response"] || "",
@@ -60,6 +75,9 @@ defmodule Ollixir.Types.GenerateResponse do
       logprobs: parse_logprobs(map["logprobs"])
     }
   end
+
+  defp parse_tool_calls(nil), do: nil
+  defp parse_tool_calls(calls), do: Enum.map(calls, &Ollixir.Types.ToolCall.from_map/1)
 
   defp parse_logprobs(nil), do: nil
   defp parse_logprobs(probs), do: Enum.map(probs, &Logprob.from_map/1)

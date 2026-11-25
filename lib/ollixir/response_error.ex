@@ -82,13 +82,27 @@ defmodule Ollixir.ResponseError do
   def retryable?(_), do: false
 
   defp extract_error(body) when is_map(body) do
-    body["error"] || body[:error]
+    case body["error"] || body[:error] || body["message"] || body[:message] do
+      error when is_binary(error) ->
+        error
+
+      error when is_map(error) ->
+        case error["message"] || error[:message] do
+          message when is_binary(message) -> message
+          _ -> inspect(error)
+        end
+
+      nil ->
+        nil
+
+      error ->
+        inspect(error)
+    end
   end
 
   defp extract_error(body) when is_binary(body) do
     case Jason.decode(body) do
-      {:ok, %{"error" => error}} -> error
-      {:ok, %{"message" => message}} -> message
+      {:ok, data} when is_map(data) -> extract_error(data) || body
       _ -> body
     end
   end

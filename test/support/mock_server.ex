@@ -604,8 +604,10 @@ defmodule Ollixir.MockServer do
   end
 
   defp stream(conn, name) do
-    Enum.reduce(@stream_mocks[name], send_chunked(conn, 200), fn chunk, conn ->
-      {:ok, conn} = chunk(conn, chunk)
+    conn = put_resp_content_type(conn, "application/x-ndjson")
+
+    Enum.reduce(@stream_mocks[name], send_chunked(conn, 200), fn payload, conn ->
+      {:ok, conn} = chunk(conn, Jason.encode!(Jason.decode!(payload)) <> "\n")
       conn
     end)
   end

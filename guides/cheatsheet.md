@@ -3,7 +3,7 @@
 ## Installation
 
 ```elixir
-{:ollixir, "~> 0.1.1"}
+{:ollixir, "~> 0.2.0"}
 ```
 
 ## Error Types
@@ -153,3 +153,20 @@ Ollixir.delete_model(client, name: "model")
 | `:dimensions` | Embedding output size (embed only) |
 | `:keep_alive` | Memory duration |
 | `:options` | Model params |
+
+## Ollixir 0.2.0 additions
+
+```elixir
+Ollixir.version(client)
+Ollixir.heartbeat(client)
+Ollixir.status(client)
+Ollixir.whoami(client)
+Ollixir.show_manifests(client, model: "llama3.2", response_format: :struct)
+Ollixir.embed(client, model: "your-model", input: %{image: {:file, "photo.png"}})
+Ollixir.OpenAI.models(client)
+Ollixir.Anthropic.messages(client, model: "llama3.2", max_tokens: 64, messages: [%{role: "user", content: "Hello"}])
+```
+
+See [System One](system-one.md), [Server and Account](server-and-account.md),
+[OpenAI Compatibility](openai-compatibility.md), and
+[Anthropic Compatibility](anthropic-compatibility.md) for route details.

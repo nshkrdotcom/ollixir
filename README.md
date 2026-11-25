@@ -9,8 +9,11 @@
 [![Build Status](https://img.shields.io/github/actions/workflow/status/nshkrdotcom/ollixir/elixir.yml?branch=main)](https://github.com/nshkrdotcom/ollixir/actions)
 
 [Ollama](https://ollama.com) runs large language models locally or on your infrastructure.
-Ollixir provides a first-class Elixir client with feature parity to the official
-ollama-python library.
+Ollixir provides an Elixir client for native Ollama operations and Ollama's
+OpenAI- and Anthropic-compatible HTTP routes. Version 0.2.0 targets Ollama
+v0.40.18; its newer wire contracts are based on upstream main at
+`784dd544291825e8f5f064672dc2bd7f4d9345ed`. Model and server capabilities vary;
+compatibility routes are not full implementations of the provider SDKs.
 
 ## Features
 
@@ -18,7 +21,11 @@ ollama-python library.
 - Streaming to an `Enumerable` or directly to any process
 - Tool use (function calling) + function-to-tool helpers
 - Structured outputs (JSON or JSON Schema)
-- Multimodal image support with automatic Base64 encoding
+- Multimodal image support and text/image/audio embedding inputs
+- System One decision-model questions and typed responses
+- Server status, version, account and experimental server operations
+- OpenAI-compatible chat, completions, embeddings, models, Responses, audio
+- Anthropic-compatible messages and SSE streaming
 - Typed responses (`response_format: :struct`) and typed options (`Ollixir.Options`)
 - HuggingFace Hub integration: discover and run 45K+ GGUF models ([optional dep](guides/huggingface.md#installation))
 - Cloud API: web search and web fetch
@@ -54,10 +61,56 @@ Requires Elixir 1.15+.
 ```elixir
 def deps do
   [
-    {:ollixir, "~> 0.1.1"}
+    {:ollixir, "~> 0.2.0"}
   ]
 end
 ```
+
+## New in 0.2.0
+
+Native chat and generation accept `runner`, `truncate`, `shift`,
+`_debug_render_only` (also `debug_render_only`), and explicit thinking controls.
+Omitting `think` leaves the server/model default intact. Native messages retain
+thinking and tool-call IDs; typed responses expose cached prompt counts and
+remote model metadata. Model operations accept `model:` as well as legacy
+`name:`. For manifest lists, use `Ollixir.show_manifests/2`.
+
+```elixir
+client = Ollixir.init()
+{:ok, version} = Ollixir.version(client)
+{:ok, status} = Ollixir.status(client)
+
+{:ok, response} = Ollixir.system_one(client,
+  model: "your-decision-model",
+  state: "The parcel arrived yesterday.",
+  questions: [{"delivered", %{type: "noul", instructions: "Was it delivered?"}}]
+)
+```
+
+For compatible embedding models, `Ollixir.embed/2` accepts a string, a list of
+strings, a multimodal map, or a mixed list. Media inputs may be tagged as
+`{:file, path}`, `{:binary, bytes}`, or `{:base64, encoded}`.
+
+Use the separate clients when you need provider-shaped payloads:
+
+```elixir
+openai = Ollixir.OpenAI.init()
+{:ok, response} = Ollixir.OpenAI.chat(openai,
+  model: "llama3.2",
+  messages: [%{role: "user", content: "Hello"}]
+)
+
+anthropic = Ollixir.Anthropic.init()
+{:ok, response} = Ollixir.Anthropic.messages(anthropic,
+  model: "llama3.2", max_tokens: 128,
+  messages: [%{role: "user", content: "Hello"}]
+)
+```
+
+These clients return raw provider JSON maps, not native response structs.
+Native streaming is NDJSON; compatibility streaming is SSE (speech streams
+bytes). Both support `stream: true` for enumeration or `stream: pid` for a
+worker task. See the protocol guides for endpoint and completion semantics.
 
 ## Quickstart
 
@@ -440,6 +493,10 @@ Ollixir.web_fetch(client, url: "https://elixir-lang.org")
 - [Multimodal](guides/multimodal.md)
 - [HuggingFace Integration](guides/huggingface.md)
 - [Cloud API](guides/cloud-api.md)
+- [System One](guides/system-one.md)
+- [Server and Account](guides/server-and-account.md)
+- [OpenAI Compatibility](guides/openai-compatibility.md)
+- [Anthropic Compatibility](guides/anthropic-compatibility.md)
 - [Ollama Server Setup](guides/ollama-setup.md)
 - [Cheatsheet](guides/cheatsheet.md)
 

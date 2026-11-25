@@ -8,6 +8,7 @@ defmodule Ollixir.Types.Message do
   alias Ollixir.Types.ToolCall
 
   @type t :: %__MODULE__{
+          tool_call_id: String.t() | nil,
           role: String.t() | nil,
           content: String.t() | nil,
           thinking: String.t() | nil,
@@ -16,11 +17,12 @@ defmodule Ollixir.Types.Message do
           tool_calls: [ToolCall.t()] | nil
         }
 
-  defstruct [:role, :content, :thinking, :images, :tool_name, :tool_calls]
+  defstruct [:tool_call_id, :role, :content, :thinking, :images, :tool_name, :tool_calls]
 
   @spec from_map(map()) :: t()
   def from_map(map) when is_map(map) do
     %__MODULE__{
+      tool_call_id: map["tool_call_id"],
       role: map["role"],
       content: map["content"],
       thinking: map["thinking"],

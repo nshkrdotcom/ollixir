@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-11-25
+
+### Added
+
+- System One (`/v1/systemone`) with ordered questions, numeric answers, and
+  optional typed responses.
+- Multimodal native embeddings accepting text, images, audio, and mixed batches.
+- Native runner selection, context shifting/truncation and render-debug controls;
+  model creation metadata, draft weights, manifest lists, and modern model names.
+- Heartbeat, version, cloud status, account identity, balance, usage, signout,
+  disconnect, recommendations, and experimental server web search/fetch.
+- `Ollixir.OpenAI` for chat, completions, embeddings, models, Responses,
+  Responses compaction, audio transcription/translation, and speech.
+- `Ollixir.Anthropic` for Messages with JSON and SSE responses.
+- Mocked request/response and streaming regressions; guides for the new APIs.
+
+### Changed
+
+- Target Ollama v0.40.18; newer wire contracts follow upstream snapshot
+  `784dd544291825e8f5f064672dc2bd7f4d9345ed`.
+- Native response structs retain newer metadata, tool-call IDs, thinking, and
+  prompt cache metrics. Typed options include `min_p` and `draft_num_predict`.
+- Native `think` is omitted unless explicitly supplied; the server selects its
+  default. Legacy `name:` remains accepted alongside `model:`.
+- Native NDJSON and compatibility SSE streams buffer partial frames across
+  transport chunks, surface errors, and support early enumeration termination.
+- Nested compatibility error details are preserved in `ResponseError`.
+
 ## [0.1.1] - 2026-02-13
 
 ### Updated
@@ -102,5 +130,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 40+ runnable example scripts
   - Cheatsheet for quick reference
 
+[0.2.0]: https://github.com/nshkrdotcom/ollixir/releases/tag/v0.2.0
 [0.1.1]: https://github.com/nshkrdotcom/ollixir/releases/tag/v0.1.1
 [0.1.0]: https://github.com/nshkrdotcom/ollixir/releases/tag/v0.1.0

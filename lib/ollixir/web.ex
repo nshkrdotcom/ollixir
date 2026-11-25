@@ -73,6 +73,24 @@ defmodule Ollixir.Web do
     end
   end
 
+  @doc "Search using the configured server's experimental cloud proxy."
+  def search_experimental(%Ollixir{} = client, opts) do
+    with {:ok, body} <- validate_search_opts(opts),
+         {:ok, response} <-
+           Ollixir.Transport.request(client, :post, "/api/experimental/web_search", json: body) do
+      {:ok, SearchResponse.from_map(response)}
+    end
+  end
+
+  @doc "Fetch using the configured server's experimental cloud proxy."
+  def fetch_experimental(%Ollixir{} = client, opts) do
+    with {:ok, body} <- validate_fetch_opts(opts),
+         {:ok, response} <-
+           Ollixir.Transport.request(client, :post, "/api/experimental/web_fetch", json: body) do
+      {:ok, FetchResponse.from_map(response)}
+    end
+  end
+
   defp validate_search_opts(opts) do
     query = Keyword.get(opts, :query)
     max_results = Keyword.get(opts, :max_results, 3)
