@@ -11,23 +11,29 @@ defmodule Ollixir.Image do
 
   @supported_extensions ~w(.png .jpg .jpeg .webp .gif)
 
-  @type image_input :: binary() | String.t()
+  @type image_input :: binary() | {:file | :binary | :base64, binary()}
   @type encoded_image :: String.t()
 
   @doc """
   Encode an image to Base64.
   """
   @spec encode(image_input()) :: {:ok, encoded_image()} | {:error, term()}
+  def encode({tag, value}) when tag in [:file, :binary, :base64] and is_binary(value),
+    do: Ollixir.Media.encode({tag, value}, :image)
+
   def encode(input) when is_binary(input) do
     cond do
+      not String.valid?(input) or :binary.match(input, <<0>>) != :nomatch ->
+        {:ok, Base.encode64(input)}
+
       File.exists?(input) ->
         encode_file(input)
 
+      magic_bytes?(input) ->
+        {:ok, Base.encode64(input)}
+
       image_extension?(input) ->
         {:error, {:file_not_found, input}}
-
-      image_binary?(input) ->
-        {:ok, Base.encode64(input)}
 
       valid_base64?(input) ->
         {:ok, input}
@@ -36,6 +42,8 @@ defmodule Ollixir.Image do
         {:error, {:invalid_image, "Could not determine image format"}}
     end
   end
+
+  def encode(_), do: {:error, :invalid_image}
 
   @doc """
   Encode an image, raising on error.
@@ -87,11 +95,11 @@ defmodule Ollixir.Image do
     timeout = Keyword.get(opts, :timeout, 30_000)
     max_size = Keyword.get(opts, :max_size, 20 * 1024 * 1024)
 
-    case Req.get(url, receive_timeout: timeout) do
-      {:ok, %{status: 200, body: body}} when byte_size(body) <= max_size ->
+    case Req.get(url, receive_timeout: timeout, decode_body: false, http_errors: :return) do
+      {:ok, %{status: 200, body: body}} when is_binary(body) and byte_size(body) <= max_size ->
         encode(body)
 
-      {:ok, %{status: 200, body: body}} ->
+      {:ok, %{status: 200, body: body}} when is_binary(body) ->
         {:error, {:file_too_large, byte_size(body), max_size}}
 
       {:ok, %{status: status}} ->
@@ -112,16 +120,6 @@ defmodule Ollixir.Image do
   defp image_extension?(input) do
     ext = Path.extname(input) |> String.downcase()
     ext in @supported_extensions
-  end
-
-  defp image_binary?(data) do
-    cond do
-      not String.valid?(data) ->
-        true
-
-      true ->
-        magic_bytes?(data)
-    end
   end
 
   defp magic_bytes?(<<0x89, 0x50, 0x4E, 0x47, _::binary>>), do: true

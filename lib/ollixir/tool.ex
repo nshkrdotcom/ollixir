@@ -114,8 +114,40 @@ defmodule Ollixir.Tool do
   end
 
   defp convert_if_function(fun) when is_function(fun), do: from_function(fun)
-  defp convert_if_function(tool) when is_map(tool), do: {:ok, tool}
+
+  defp convert_if_function(tool) when is_map(tool) and not is_struct(tool) do
+    with {:ok, tool} <- normalize_keys(tool, [:type, :function, :items]) do
+      case tool[:function] do
+        function when is_map(function) and not is_struct(function) ->
+          with {:ok, function} <- normalize_keys(function, [:name, :description, :parameters]) do
+            {:ok, Map.put(tool, :function, function)}
+          end
+
+        _ ->
+          {:ok, tool}
+      end
+    end
+  end
+
   defp convert_if_function(other), do: {:error, {:invalid_tool, other}}
+
+  defp normalize_keys(map, keys) do
+    Enum.reduce_while(keys, {:ok, map}, fn key, {:ok, acc} ->
+      string = Atom.to_string(key)
+
+      cond do
+        Map.has_key?(acc, key) and Map.has_key?(acc, string) ->
+          {:halt, {:error, {:duplicate_tool_field, key}}}
+
+        Map.has_key?(acc, string) ->
+          {value, acc} = Map.pop(acc, string)
+          {:cont, {:ok, Map.put(acc, key, value)}}
+
+        true ->
+          {:cont, {:ok, acc}}
+      end
+    end)
+  end
 
   defp build_parameters(params) do
     {properties, required} =

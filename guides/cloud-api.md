@@ -208,10 +208,17 @@ curl -H "Authorization: Bearer $OLLAMA_API_KEY" https://ollama.com/api/tags
 Override the default authorization:
 
 ```elixir
-client = Ollixir.init("https://ollama.com",
+client = Ollixir.init(host: "https://ollama.com",
   headers: [{"authorization", "Bearer your_api_key_here"}]
 )
 ```
+
+Hosted web calls use the environment key only for `https://ollama.com`,
+credentials on a client for that same origin, or an explicit `api_key:` on
+the operation. A custom web base URL does not inherit a different origin's
+credentials. Credential-bearing requests do not automatically follow redirects.
+For a locally signed-in Ollama server, use `web_search_experimental/2` and
+`web_fetch_experimental/2` rather than forwarding hosted credentials.
 
 ## Cloud vs Local Comparison
 

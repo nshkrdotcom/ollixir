@@ -413,7 +413,7 @@ client = Ollixir.init("https://ollama.com")
 `OLLAMA_API_KEY` is used automatically if it is set. To override headers:
 
 ```elixir
-client = Ollixir.init("https://ollama.com",
+client = Ollixir.init(host: "https://ollama.com",
   headers: [{"authorization", "Bearer your_api_key_here"}]
 )
 ```
@@ -427,6 +427,7 @@ client = Ollixir.init(":11434")
 client = Ollixir.init(host: "ollama.internal:11434")
 client = Ollixir.init(headers: [{"x-some-header", "some-value"}])
 client = Ollixir.init(receive_timeout: 120_000)
+client = Ollixir.init(host: "http://localhost:11434", api_key: nil)
 
 req = Req.new(base_url: "http://localhost:11434/api", headers: [{"x-env", "dev"}])
 client = Ollixir.init(req)

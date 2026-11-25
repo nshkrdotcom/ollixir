@@ -350,9 +350,8 @@ defmodule Ollixir.Release020NativeTest do
   end
 
   defp chunks(request, chunks) do
-    Enum.reduce(chunks, {request, %Req.Response{status: 200, body: ""}}, fn chunk, acc ->
-      {:cont, acc} = request.into.({:data, chunk}, acc)
-      acc
+    Enum.reduce_while(chunks, {request, %Req.Response{status: 200, body: ""}}, fn chunk, acc ->
+      request.into.({:data, chunk}, acc)
     end)
   end
 

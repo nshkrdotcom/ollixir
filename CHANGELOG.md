@@ -33,6 +33,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   transport chunks, surface errors, and support early enumeration termination.
 - Nested compatibility error details are preserved in `ResponseError`.
 
+### Fixed
+
+- Preserve proxy mount paths and sibling API namespaces, and accept bare IPv6
+  hosts. Support explicit API keys and prevent credential-bearing redirects;
+  hosted web calls no longer inherit credentials from a different origin.
+- Preserve HTTP error bodies, disable automatic retries for native mutations,
+  and detect incomplete native streams instead of reporting false success.
+- Accept omitted chat messages and prompts, fractional keep-alive durations,
+  and explicitly tagged image, audio and blob bytes. Retain token logprob bytes
+  in typed responses and accept string-keyed tools and runner-specific chat roles.
+- Reject duplicate System One criterion keys and compatibility request fields;
+  use MIME types for multipart audio uploads and handle unexpected web bodies.
+- Correct hosted-client initialization examples and add audit regressions.
+
 ## [0.1.1] - 2026-02-13
 
 ### Updated

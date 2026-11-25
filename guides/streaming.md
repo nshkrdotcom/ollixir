@@ -194,3 +194,10 @@ error if the connection closes first. SSE payloads arrive individually. Speech
 streams raw binary chunks. See the
 [OpenAI](openai-compatibility.md) and [Anthropic](anthropic-compatibility.md)
 compatibility guides for complete examples.
+
+Native inference streams must end with `done: true` (or a render-debug
+result); pull, push and create must end with `status: "success"`. A truncated
+stream raises during enumeration or returns an error from its PID task.
+Native POST/DELETE requests and compatibility streams are not automatically
+retried, because an interrupted request may already have changed server state.
+Use explicit retries only when repeating the operation is safe.

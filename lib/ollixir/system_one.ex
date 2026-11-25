@@ -79,15 +79,22 @@ defmodule Ollixir.SystemOne do
 
   # Some runners accept structured criterion descriptions and impose tighter limits.
   defp object_criteria(type, pairs) do
-    if Enum.all?(pairs, fn
-         {key, _} when is_atom(key) or is_binary(key) ->
-           key = to_string(key)
-           if type == "noul", do: key in ["true", "false"], else: String.trim(key) != ""
+    valid_keys? =
+      Enum.all?(pairs, fn
+        {key, _} when is_atom(key) or is_binary(key) ->
+          key = to_string(key)
+          if type == "noul", do: key in ["true", "false"], else: String.trim(key) != ""
 
-         _ ->
-           false
-       end) do
-      :ok
+        _ ->
+          false
+      end)
+
+    if valid_keys? do
+      keys = Enum.map(pairs, fn {key, _} -> to_string(key) end)
+
+      if length(keys) == length(Enum.uniq(keys)),
+        do: :ok,
+        else: invalid(:questions, "Duplicate criterion key")
     else
       invalid(:questions, "Invalid criterion key")
     end
@@ -102,10 +109,11 @@ defmodule Ollixir.SystemOne do
   defp content(%Jason.OrderedObject{}, _field), do: :ok
 
   defp content(value, _field)
-       when is_binary(value) or is_list(value) or (is_map(value) and not is_struct(value)),
+       when is_binary(value) or is_number(value) or is_boolean(value) or is_list(value) or
+              (is_map(value) and not is_struct(value)),
        do: :ok
 
-  defp content(_, field), do: invalid(field, "Expected a string, object, or array")
+  defp content(_, field), do: invalid(field, "Expected a JSON value")
 
   defp invalid(field, message),
     do: {:error, RequestError.exception(field: field, message: message)}

@@ -56,10 +56,22 @@ defmodule Ollixir do
   ## Links
 
   - [GitHub](https://github.com/nshkrdotcom/ollixir)
-  - [Ollama API Docs](https://github.com/ollama/ollama/blob/main/docs/api.md)
+  - [Ollama API Docs](https://docs.ollama.com/api)
   """
   use Ollixir.Schemas
-  alias Ollixir.{Blob, ConnectionError, Image, Options, RequestError, ResponseError, Tool, Web}
+
+  alias Ollixir.{
+    Blob,
+    ConnectionError,
+    Image,
+    Options,
+    RequestError,
+    ResponseError,
+    Tool,
+    Transport,
+    Web
+  }
+
   defstruct [:req]
 
   @typedoc "Client struct"
@@ -71,9 +83,10 @@ defmodule Ollixir do
 
   schema(:chat_message,
     role: [
-      type: {:in, ["system", "user", "assistant", "tool"]},
+      type: :string,
       required: true,
-      doc: "The role of the message, either `system`, `user`, `assistant` or `tool`."
+      doc:
+        "The message role, commonly `system`, `user`, `assistant` or `tool`. The runner determines supported roles."
     ],
     content: [
       type: {:or, [:string, nil]},
@@ -163,6 +176,11 @@ defmodule Ollixir do
   - `OLLAMA_HOST` - Default Ollama server URL (default: http://localhost:11434)
   - `OLLAMA_API_KEY` - Bearer token for API authentication
 
+  Pass `api_key: "..."` to override the environment token, or `api_key: nil`
+  to suppress it. An explicit authorization header still takes precedence.
+  Reverse-proxy mount paths are retained; use `/api` or `/v1` as the final
+  namespace if desired. Credential-bearing requests do not follow redirects.
+
   ## Examples
 
       # Uses OLLAMA_HOST or defaults to localhost:11434
@@ -208,7 +226,7 @@ defmodule Ollixir do
 
   @spec init_req(keyword()) :: Req.Request.t()
   defp init_req(opts) do
-    api_key = System.get_env("OLLAMA_API_KEY")
+    api_key = Keyword.get(opts, :api_key, System.get_env("OLLAMA_API_KEY"))
 
     base_url =
       opts
@@ -218,7 +236,7 @@ defmodule Ollixir do
     base_headers = [{"user-agent", user_agent()}]
 
     api_key_headers =
-      if api_key do
+      if is_binary(api_key) and api_key != "" do
         [{"authorization", "Bearer #{api_key}"}]
       else
         []
@@ -229,10 +247,11 @@ defmodule Ollixir do
     merged_headers = merge_headers(base_headers ++ api_key_headers, user_headers)
 
     opts
-    |> Keyword.drop([:base_url, :host, :headers])
+    |> Keyword.drop([:base_url, :host, :headers, :api_key])
     |> Keyword.put(:base_url, base_url)
     |> Keyword.put(:headers, merged_headers)
     |> Keyword.put_new(:receive_timeout, 60_000)
+    |> Keyword.put_new(:redirect_trusted, false)
     |> Req.new()
   end
 
@@ -257,60 +276,57 @@ defmodule Ollixir do
     end
   end
 
-  defp ensure_api_suffix(url) when is_binary(url) do
-    trimmed = String.trim_trailing(url, "/")
-
-    if String.ends_with?(trimmed, "/api") do
-      trimmed
-    else
-      trimmed <> "/api"
-    end
-  end
-
   defp normalize_base_url(%URI{} = uri), do: normalize_base_url(URI.to_string(uri))
-  defp normalize_base_url(nil), do: ensure_api_suffix(parse_host(nil))
+  defp normalize_base_url(nil), do: normalize_base_url("")
 
   defp normalize_base_url(url) when is_binary(url) do
-    trimmed = String.trim(url)
+    url = String.trim(url)
 
-    if trimmed == "" do
-      ensure_api_suffix(parse_host(nil))
-    else
-      base =
-        if String.contains?(trimmed, "://") do
-          trimmed
-        else
-          trimmed
-          |> String.trim_trailing("/")
-          |> String.split("/", parts: 2)
-          |> hd()
-          |> parse_host()
-        end
+    uri =
+      cond do
+        url == "" ->
+          URI.parse("http://localhost:11434")
 
-      ensure_api_suffix(base)
-    end
+        String.contains?(url, "://") ->
+          URI.parse(url)
+
+        true ->
+          parse_bare_host(url)
+      end
+
+    path = String.trim_trailing(uri.path || "", "/")
+
+    path =
+      cond do
+        String.ends_with?(path, "/api") -> path
+        String.ends_with?(path, "/v1") -> String.trim_trailing(path, "/v1") <> "/api"
+        true -> path <> "/api"
+      end
+
+    URI.to_string(%{uri | path: path, query: nil, fragment: nil})
   end
 
-  defp parse_host(nil), do: "http://localhost:11434"
-  defp parse_host(""), do: "http://localhost:11434"
+  defp parse_bare_host(host) do
+    [authority | _] = String.split(host, "/", parts: 2)
 
-  defp parse_host(host) when is_binary(host) do
-    host = String.trim(host)
-    host = String.trim_trailing(host, "/")
+    host =
+      cond do
+        String.starts_with?(authority, ":") and not String.starts_with?(authority, "::") ->
+          "localhost" <> host
 
-    cond do
-      String.starts_with?(host, "http://") or String.starts_with?(host, "https://") ->
-        host
+        not String.starts_with?(authority, "[") and length(:binary.matches(authority, ":")) > 1 ->
+          String.replace_prefix(host, authority, "[" <> authority <> "]")
 
-      String.starts_with?(host, ":") ->
-        "http://localhost:" <> String.trim_leading(host, ":")
+        true ->
+          host
+      end
 
-      String.contains?(host, ":") ->
-        "http://" <> host
+    uri = URI.parse("http://" <> host)
 
-      true ->
-        "http://" <> host <> ":11434"
-    end
+    explicit_port =
+      Regex.match?(~r/\]:\d+\z|\A[^\[\]:]+:\d+\z/, uri.authority || "")
+
+    if explicit_port, do: uri, else: %{uri | port: 11434}
   end
 
   defp merge_headers(base, override) do
@@ -337,9 +353,19 @@ defmodule Ollixir do
   defp resolve_response_format(_), do: :map
 
   defp validate_params(params, schema) do
+    params =
+      Enum.reject(params, fn {key, value} ->
+        is_nil(value) and Keyword.has_key?(schema.schema, key) and
+          not Keyword.get(schema.schema[key], :required, false)
+      end)
+
     case NimbleOptions.validate(params, schema) do
       {:ok, params} ->
-        {:ok, params}
+        if params[:model] == "" do
+          {:error, RequestError.invalid_value(:model, "", "must not be empty")}
+        else
+          {:ok, params}
+        end
 
       {:error, %NimbleOptions.ValidationError{} = error} ->
         {:error,
@@ -418,8 +444,12 @@ defmodule Ollixir do
     end
   end
 
-  defp apply_cast({:ok, body}, cast_fun) when is_function(cast_fun) do
+  defp apply_cast({:ok, body}, cast_fun) when is_map(body) and is_function(cast_fun) do
     {:ok, cast_fun.(body)}
+  end
+
+  defp apply_cast({:ok, _body}, cast_fun) when is_function(cast_fun) do
+    {:error, RequestError.exception("Expected a JSON object response")}
   end
 
   defp apply_cast(result, _cast_fun), do: result
@@ -592,7 +622,7 @@ defmodule Ollixir do
     ],
     messages: [
       type: {:list, {:map, schema_def(:chat_message).schema}},
-      required: true,
+      default: [],
       doc: "List of messages - used to keep a chat memory."
     ],
     tools: [
@@ -624,13 +654,13 @@ defmodule Ollixir do
       doc: "Number of alternative tokens to return (0-20)"
     ],
     keep_alive: [
-      type: {:or, [:integer, :string]},
+      type: {:or, [:integer, :float, :string]},
       doc: "How long to keep the model loaded."
     ],
     options: [
       type: {:map, {:or, [:atom, :string]}, :any},
       doc:
-        "Additional advanced [model parameters](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values)."
+        "Additional advanced [model parameters](https://docs.ollama.com/modelfile#valid-parameters-and-values)."
     ]
   )
 
@@ -681,7 +711,7 @@ defmodule Ollixir do
       ...>   messages: messages,
       ...>   stream: true,
       ...> ])
-      {:ok, Ollixir.Streaming{}}
+      {:ok, stream}
 
   ## Returns
 
@@ -724,7 +754,7 @@ defmodule Ollixir do
     ],
     prompt: [
       type: :string,
-      required: true,
+      default: "",
       doc: "Prompt to generate a response for."
     ],
     suffix: [
@@ -745,7 +775,7 @@ defmodule Ollixir do
       doc: "Prompt template, overriding the model default."
     ],
     context: [
-      type: {:list, {:or, [:integer, :float]}},
+      type: {:list, :integer},
       doc:
         "The context parameter returned from a previous `completion/2` call (enabling short conversational memory)."
     ],
@@ -778,13 +808,13 @@ defmodule Ollixir do
       doc: "Number of alternative tokens to return (0-20)"
     ],
     keep_alive: [
-      type: {:or, [:integer, :string]},
+      type: {:or, [:integer, :float, :string]},
       doc: "How long to keep the model loaded."
     ],
     options: [
       type: {:map, {:or, [:atom, :string]}, :any},
       doc:
-        "Additional advanced [model parameters](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values)."
+        "Additional advanced [model parameters](https://docs.ollama.com/modelfile#valid-parameters-and-values)."
     ]
   )
 
@@ -815,7 +845,7 @@ defmodule Ollixir do
       ...>   prompt: "Why is the sky blue?",
       ...>   stream: true,
       ...> ])
-      {:ok, %Ollixir.Streaming{}}
+      {:ok, stream}
 
   ## Returns
 
@@ -859,7 +889,7 @@ defmodule Ollixir do
   schema(:create_model,
     model: [type: :string, doc: "Name for the new model"],
     name: [type: :string, doc: "Legacy model name"],
-    modelfile: [type: :string, doc: "Modelfile contents"],
+    modelfile: [type: :string, doc: "Legacy Modelfile contents (older servers only)."],
     draft_quantize: [type: :string, doc: "Draft weight quantization"],
     draft_files: [type: {:map, :string, :string}, doc: "Draft files and digests"],
     list: [type: {:list, :string}, doc: "Local tags for a manifest list"],
@@ -872,7 +902,10 @@ defmodule Ollixir do
     quantization: [type: :string, doc: "Legacy quantization field"],
     from: [type: :string, doc: "Base model to create from"],
     files: [type: {:map, :string, :string}, doc: "Custom files to include"],
-    adapters: [type: {:map, :string, :string}, doc: "LoRA adapter files"],
+    adapters: [
+      type: {:map, :string, :string},
+      doc: "Legacy LoRA adapter files (older servers only)."
+    ],
     template: [type: :string, doc: "Custom prompt template"],
     license: [type: {:or, [:string, {:list, :string}]}, doc: "License declaration"],
     system: [type: :string, doc: "System prompt"],
@@ -883,11 +916,12 @@ defmodule Ollixir do
   )
 
   @doc """
-  Creates a model using the given name and model file. Optionally
-  streamable.
+  Creates a model from an existing model or uploaded files. Optionally streamable.
 
-  Any dependent blobs reference in the modelfile, such as `FROM` and `ADAPTER`
-  instructions, must exist first. See `check_blob/2` and `create_blob/2`.
+  Upload dependent files before passing their digests in `:files`.
+  See `check_blob/2` and `create_blob/2`. The legacy `:modelfile` option is
+  retained for older servers; current Ollama expects structured fields.
+  Current Ollama also rejects nonempty `:adapters` (legacy LoRA support).
 
   ## Parameters
 
@@ -900,13 +934,13 @@ defmodule Ollixir do
 
   ## Example
 
-      iex> modelfile = "FROM llama2\\nSYSTEM \\"You are mario from Super Mario Bros.\\""
       iex> Ollixir.create_model(client, [
-      ...>   name: "mario",
-      ...>   modelfile: modelfile,
+      ...>   model: "mario",
+      ...>   from: "llama2",
+      ...>   system: "You are Mario from Super Mario Bros.",
       ...>   stream: true,
       ...> ])
-      {:ok, Ollixir.Streaming{}}
+      {:ok, stream}
 
   ## Returns
 
@@ -931,6 +965,7 @@ defmodule Ollixir do
          :ok <- validate_model_name(params) do
       parameters =
         case params[:parameters] do
+          %Options{} = options -> Options.to_map(options)
           list when is_list(list) -> Enum.into(list, %{})
           map -> map
         end
@@ -1046,13 +1081,14 @@ defmodule Ollixir do
 
   schema(:load_model,
     runner: [type: :string, doc: "Select a runner variant."],
+    runner: [type: :string, doc: "Select a runner variant."],
     model: [
       type: :string,
       required: true,
       doc: "Name of the model to load."
     ],
     keep_alive: [
-      type: {:or, [:integer, :string]},
+      type: {:or, [:integer, :float, :string]},
       doc: "How long to keep the model loaded."
     ]
   )
@@ -1072,8 +1108,8 @@ defmodule Ollixir do
 
   ## Example
 
-      iex> Ollixir.preload(client, model: "llama3.1", timeout: 3_600_000)
-      true
+      iex> Ollixir.preload(client, model: "llama3.1", keep_alive: "1h")
+      {:ok, true}
 
   ## Returns
 
@@ -1109,8 +1145,8 @@ defmodule Ollixir do
 
   ## Example
 
-      iex> Ollixir.preload(client, model: "llama3.1")
-      true
+      iex> Ollixir.unload(client, model: "llama3.1")
+      {:ok, true}
 
   ## Returns
 
@@ -1392,7 +1428,7 @@ defmodule Ollixir do
 
       # Passing true to the :stream option initiates an async streaming request.
       iex> Ollixir.pull_model(client, name: "llama2", stream: true)
-      {:ok, %Ollixir.Streaming{}}
+      {:ok, stream}
 
   ## Returns
 
@@ -1467,7 +1503,7 @@ defmodule Ollixir do
 
       # Passing true to the :stream option initiates an async streaming request.
       iex> Ollixir.push_model(client, name: "mattw/pygmalion:latest", stream: true)
-      {:ok, %Ollixir.Streaming{}}
+      {:ok, stream}
 
   ## Returns
 
@@ -1533,8 +1569,13 @@ defmodule Ollixir do
   - `create_blob/2` - Create a blob
   """
   @spec check_blob(client(), Blob.digest() | binary()) :: response()
-  def check_blob(%__MODULE__{} = client, "sha256:" <> _ = digest),
-    do: req(client, :head, "/blobs/#{digest}") |> res_status()
+  def check_blob(%__MODULE__{} = client, "sha256:" <> _ = digest) do
+    if Regex.match?(~r/\Asha256:[0-9a-fA-F]{64}\z/, digest) do
+      req(client, :head, "/blobs/#{digest}") |> res_status()
+    else
+      {:ok, false}
+    end
+  end
 
   def check_blob(%__MODULE__{} = client, blob) when is_binary(blob),
     do: check_blob(client, Blob.digest(blob))
@@ -1545,7 +1586,8 @@ defmodule Ollixir do
   ## Parameters
 
   - `client` - Ollama client from `init/1`
-  - `blob` - File path or raw binary data
+  - `blob` - File path or raw binary data. Use `{:binary, bytes}` or
+    `{:file, path}` when the input could be mistaken for the other.
 
   ## Examples
 
@@ -1566,8 +1608,8 @@ defmodule Ollixir do
 
   - `check_blob/2` - Verify blob existence
   """
-  @spec create_blob(client(), binary()) :: response()
-  def create_blob(%__MODULE__{} = client, blob) when is_binary(blob) do
+  @spec create_blob(client(), binary() | {:file, Path.t()} | {:binary, binary()}) :: response()
+  def create_blob(%__MODULE__{} = client, blob) do
     with {:ok, data} <- read_blob_data(blob) do
       digest = Blob.digest(data)
 
@@ -1577,30 +1619,38 @@ defmodule Ollixir do
     end
   end
 
+  defp read_blob_data({:binary, blob}) when is_binary(blob), do: {:ok, blob}
+  defp read_blob_data({:file, path}) when is_binary(path), do: read_blob_file(path)
+
   defp read_blob_data(blob) when is_binary(blob) do
     cond do
-      File.exists?(blob) ->
-        case File.read(blob) do
-          {:ok, data} ->
-            {:ok, data}
+      not String.valid?(blob) or :binary.match(blob, <<0>>) != :nomatch ->
+        {:ok, blob}
 
-          {:error, reason} ->
-            {:error,
-             RequestError.exception(
-               message: "Failed to read blob file",
-               reason: {:file_read_error, reason}
-             )}
-        end
+      File.exists?(blob) ->
+        read_blob_file(blob)
 
       path_like?(blob) ->
-        {:error,
-         RequestError.exception(
-           message: "Blob file not found",
-           reason: :file_not_found
-         )}
+        {:error, RequestError.exception(message: "Blob file not found", reason: :file_not_found)}
 
       true ->
         {:ok, blob}
+    end
+  end
+
+  defp read_blob_data(_), do: {:error, RequestError.exception("Expected a blob or file path")}
+
+  defp read_blob_file(path) do
+    case File.read(path) do
+      {:ok, data} ->
+        {:ok, data}
+
+      {:error, reason} ->
+        {:error,
+         RequestError.exception(
+           message: "Failed to read blob file",
+           reason: {:file_read_error, reason}
+         )}
     end
   end
 
@@ -1617,7 +1667,7 @@ defmodule Ollixir do
     ],
     input: [
       type: {:or, [:string, @permissive_map, {:list, {:or, [:string, @permissive_map]}}]},
-      required: true,
+      default: "",
       doc: "Text, a multimodal item, or a mixed list of items."
     ],
     truncate: [
@@ -1629,13 +1679,13 @@ defmodule Ollixir do
       doc: "Output embedding dimensions (model-specific)"
     ],
     keep_alive: [
-      type: {:or, [:integer, :string]},
+      type: {:or, [:integer, :float, :string]},
       doc: "How long to keep the model loaded."
     ],
     options: [
       type: {:map, {:or, [:atom, :string]}, :any},
       doc:
-        "Additional advanced [model parameters](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values)."
+        "Additional advanced [model parameters](https://docs.ollama.com/modelfile#valid-parameters-and-values)."
     ]
   )
 
@@ -1657,7 +1707,7 @@ defmodule Ollixir do
       ...>   model: "nomic-embed-text",
       ...>   input: ["Why is the sky blue?", "Why is the grass green?"],
       ...> ])
-      {:ok, %{"embedding" => [
+      {:ok, %{"embeddings" => [
         [ 0.009724553, 0.04449892, -0.14063916, 0.0013168337, 0.032128844,
           0.10730086, -0.008447222, 0.010106917, 5.2289694e-4, -0.03554127, ...],
         [ 0.028196355, 0.043162502, -0.18592504, 0.035034444, 0.055619627,
@@ -1698,17 +1748,17 @@ defmodule Ollixir do
     ],
     prompt: [
       type: :string,
-      required: true,
+      default: "",
       doc: "The prompt used to generate the embedding."
     ],
     keep_alive: [
-      type: {:or, [:integer, :string]},
+      type: {:or, [:integer, :float, :string]},
       doc: "How long to keep the model loaded."
     ],
     options: [
       type: {:map, {:or, [:atom, :string]}, :any},
       doc:
-        "Additional advanced [model parameters](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values)."
+        "Additional advanced [model parameters](https://docs.ollama.com/modelfile#valid-parameters-and-values)."
     ]
   )
 
@@ -1803,11 +1853,15 @@ defmodule Ollixir do
   schema(:system_one,
     model: [type: :string, required: true, doc: "Decision model name."],
     runner: [type: :string, doc: "Runner variant."],
-    state: [type: :any, required: true, doc: "String, JSON object, or array to evaluate."],
+    state: [
+      type: :any,
+      required: true,
+      doc: "JSON state to evaluate; subject to runner restrictions."
+    ],
     images: [type: {:list, :string}, doc: "Optional images for a compatible model."],
     videos: [type: {:list, :any}, doc: "Reserved; only an empty list is accepted."],
     questions: [type: :any, required: true, doc: "Named questions (map or ordered pairs)."],
-    keep_alive: [type: {:or, [:integer, :string]}, doc: "Model keep-alive duration."]
+    keep_alive: [type: {:or, [:integer, :float, :string]}, doc: "Model keep-alive duration."]
   )
 
   @doc """
@@ -1832,10 +1886,14 @@ defmodule Ollixir do
          {:ok, params} <- validate_params(params, schema_def(:system_one)),
          {:ok, params} <- Ollixir.SystemOne.normalize(params) do
       client
-      |> Ollixir.Transport.request(:post, "/v1/systemone", json: Map.new(params))
+      |> Ollixir.Transport.request(:post, "/v1/systemone", json: Map.new(params), retry: false)
       |> apply_cast(cast_fun_for(:system_one, format))
     end
   end
+
+  @doc "Alias for `system_one/2` matching the Python client name."
+  @spec systemone(client(), keyword()) :: response()
+  def systemone(client, params), do: system_one(client, params)
 
   @doc """
   Show all manifests for a model. With `response_format: :struct`, returns
@@ -1885,7 +1943,12 @@ defmodule Ollixir do
   @doc "Sign the server account out. This changes server state."
   def signout(client), do: successful_request(client, :post, "/api/signout")
 
-  @doc "Disconnect using an already encoded public-key identifier."
+  @doc """
+  Invoke the deprecated disconnect route with an already encoded key identifier.
+
+  On current local Ollama servers this is an alias of signout and affects the
+  server's signed-in account, not necessarily the supplied key.
+  """
   def disconnect(client, encoded_key) when is_binary(encoded_key) and encoded_key != "" do
     segment = URI.encode(encoded_key, &URI.char_unreserved?/1)
     successful_request(client, :delete, "/api/user/keys/" <> segment)
@@ -1929,87 +1992,84 @@ defmodule Ollixir do
   # Builds the request from the given params
   @spec req(client(), atom(), Req.url(), keyword()) :: req_response()
   defp req(%__MODULE__{req: req}, method, url, opts \\ []) do
-    {cast_fun, opts} = Keyword.pop(opts, :cast)
-    streaming_endpoint = url in ["/chat", "/generate", "/create", "/pull", "/push"]
-    opts = Keyword.merge(opts, method: method, url: normalize_url(url))
-    stream_opt = get_in(opts, [:json, :stream])
+    with {:ok, absolute_url} <- Transport.url(req, "/api" <> url) do
+      {cast_fun, opts} = Keyword.pop(opts, :cast)
+      endpoint = String.trim_leading(url, "/")
+      streaming_endpoint = endpoint in ["chat", "generate", "create", "pull", "push"]
+      opts = Keyword.merge(opts, method: method, url: absolute_url, http_errors: :return)
+      opts = Transport.secure_options(req, opts)
+      stream_opt = get_in(opts, [:json, :stream])
 
-    cond do
-      stream_opt ->
-        opts =
-          opts
-          |> Keyword.update!(:json, &Map.put(&1, :stream, true))
-          |> Keyword.merge(decode_body: false, retry: false, compressed: false)
+      opts =
+        if method in [:post, :delete], do: Keyword.put(opts, :retry, false), else: opts
 
-        work = fn dest -> native_stream(req, opts, dest, cast_fun) end
+      cond do
+        stream_opt ->
+          opts =
+            opts
+            |> Keyword.update!(:json, &Map.put(&1, :stream, true))
+            |> Keyword.merge(decode_body: false, retry: false, compressed: false)
 
-        case stream_opt do
-          true ->
-            stream =
-              Stream.resource(
-                fn ->
-                  dest = self()
-                  {Task.async(fn -> work.(dest) end), false}
-                end,
-                &stream_next/1,
-                &stream_end/1
-              )
+          work = fn dest ->
+            Ollixir.StreamWorker.run(fn -> native_stream(req, opts, dest, cast_fun, endpoint) end)
+          end
 
-            {:ok, stream}
+          case stream_opt do
+            true ->
+              stream =
+                Stream.resource(
+                  fn ->
+                    dest = self()
+                    {Task.async(fn -> work.(dest) end), false}
+                  end,
+                  &stream_next/1,
+                  &stream_end/1
+                )
 
-          pid ->
-            {:ok, Task.async(fn -> work.(pid) end)}
-        end
+              {:ok, stream}
 
-      streaming_endpoint and is_map(Keyword.get(opts, :json)) ->
-        opts = Keyword.update!(opts, :json, &Map.put(&1, :stream, false))
-        Req.request(req, opts)
+            pid ->
+              {:ok, Task.async(fn -> work.(pid) end)}
+          end
 
-      true ->
-        Req.request(req, opts)
+        streaming_endpoint and is_map(Keyword.get(opts, :json)) ->
+          opts = Keyword.update!(opts, :json, &Map.put(&1, :stream, false))
+          Req.request(req, opts)
+
+        true ->
+          Req.request(req, opts)
+      end
     end
   end
-
-  defp normalize_url(url) when is_binary(url), do: String.trim_leading(url, "/")
-  defp normalize_url(url), do: url
 
   # Normalizes the response returned from the request
   @spec res(req_response()) :: response()
   defp res({:ok, %Task{} = task}), do: {:ok, task}
   defp res({:ok, enum}) when is_function(enum), do: {:ok, enum}
 
-  defp res({:ok, %{status: status, body: body}}) when status in 200..299 do
-    {:ok, body}
+  defp res({:ok, %{status: status}} = result) do
+    case result do
+      {:ok, %{body: _body}} -> Transport.result(result)
+      _ -> {:error, ResponseError.exception(status)}
+    end
   end
 
-  defp res({:ok, %{status: status, body: body}}) do
-    {:error, ResponseError.exception(status: status, body: body)}
-  end
-
-  defp res({:ok, %{status: status}}) do
-    {:error, ResponseError.exception(status)}
-  end
-
-  defp res({:error, %Req.TransportError{} = error}) do
-    {:error, ConnectionError.exception(original_error: error)}
-  end
-
-  defp res({:error, error}) do
-    {:error, RequestError.exception(inspect(error))}
-  end
+  defp res({:error, %RequestError{} = error}), do: {:error, error}
+  defp res({:error, _} = result), do: Transport.result(result)
 
   # Normalizes blob uploads, returning the digest on success.
   @spec res_blob(req_response(), binary()) :: response()
   defp res_blob({:ok, %{status: status}}, digest) when status in 200..299, do: {:ok, digest}
 
-  defp res_blob({:ok, %{status: status, body: body}}, _digest),
-    do: {:error, ResponseError.exception(status: status, body: body)}
+  defp res_blob({:ok, %{body: _body}} = result, _digest), do: Transport.result(result)
 
   defp res_blob({:ok, %{status: status}}, _digest), do: {:error, ResponseError.exception(status)}
 
   defp res_blob({:error, %Req.TransportError{} = error}, _digest) do
     {:error, ConnectionError.exception(original_error: error)}
   end
+
+  defp res_blob({:error, %RequestError{} = error}, _digest), do: {:error, error}
 
   defp res_blob({:error, error}, _digest), do: {:error, RequestError.exception(inspect(error))}
 
@@ -2022,28 +2082,56 @@ defmodule Ollixir do
     {:error, ConnectionError.exception(original_error: error)}
   end
 
+  defp res_status({:error, %RequestError{} = error}), do: {:error, error}
+
   defp res_status({:error, error}), do: {:error, RequestError.exception(inspect(error))}
 
   # Native streaming uses NDJSON, not one JSON object per transport chunk.
-  defp native_stream(req, opts, dest, cast_fun) do
+  defp native_stream(req, opts, dest, cast_fun, endpoint) do
     handler = fn {:data, chunk}, {request, response} ->
-      {:cont, {request, native_chunk(response, chunk, dest, cast_fun)}}
+      response = native_chunk(response, chunk, dest, cast_fun, endpoint)
+
+      action =
+        if response.status in 200..299 and
+             (response.private[:ollixir_ndjson_error] || native_terminal?(response.body, endpoint)),
+           do: :halt,
+           else: :cont
+
+      {action, {request, response}}
     end
 
     case Req.request(req, Keyword.put(opts, :into, handler)) do
       {:ok, %{status: status} = response} when status in 200..299 ->
         response =
-          if not Map.has_key?(response.private, :ollixir_ndjson) and is_binary(response.body) do
-            native_chunk(%{response | body: ""}, response.body, dest, cast_fun)
-          else
-            response
+          cond do
+            Map.has_key?(response.private, :ollixir_ndjson) ->
+              response
+
+            is_binary(response.body) ->
+              native_chunk(%{response | body: ""}, response.body, dest, cast_fun, endpoint)
+
+            is_map(response.body) ->
+              native_line(
+                %{response | body: ""},
+                Jason.encode!(response.body),
+                dest,
+                cast_fun,
+                endpoint
+              )
+
+            true ->
+              response
           end
 
         buffer = Map.get(response.private, :ollixir_ndjson, "")
-        response = native_line(response, buffer, dest, cast_fun)
+
+        response =
+          if native_terminal?(response.body, endpoint),
+            do: response,
+            else: native_line(response, buffer, dest, cast_fun, endpoint)
 
         case response.private[:ollixir_ndjson_error] do
-          nil -> finish_native(response, opts[:url])
+          nil -> finish_native(response, endpoint)
           error -> {:error, error}
         end
 
@@ -2060,28 +2148,40 @@ defmodule Ollixir do
        when endpoint in ["chat", "generate"],
        do: {:ok, body}
 
-  defp finish_native(%{body: body}, endpoint)
-       when endpoint not in ["chat", "generate"] and is_map(body),
+  defp finish_native(%{body: %{"status" => "success"} = body}, endpoint)
+       when endpoint in ["create", "pull", "push"],
        do: {:ok, body}
 
   defp finish_native(_response, _endpoint),
     do: {:error, RequestError.exception("Incomplete NDJSON response")}
 
-  defp native_chunk(%{status: status} = response, chunk, _dest, _cast_fun)
+  defp native_terminal?(%{"done" => true}, endpoint) when endpoint in ["chat", "generate"],
+    do: true
+
+  defp native_terminal?(%{"_debug_info" => _}, endpoint) when endpoint in ["chat", "generate"],
+    do: true
+
+  defp native_terminal?(%{"status" => "success"}, endpoint)
+       when endpoint in ["create", "pull", "push"],
+       do: true
+
+  defp native_terminal?(_, _), do: false
+
+  defp native_chunk(%{status: status} = response, chunk, _dest, _cast_fun, _endpoint)
        when status not in 200..299 do
     %{response | body: (response.body || "") <> chunk}
   end
 
-  defp native_chunk(response, chunk, dest, cast_fun) do
+  defp native_chunk(response, chunk, dest, cast_fun, endpoint) do
     buffer = Map.get(response.private, :ollixir_ndjson, "")
     {buffer, lines} = List.pop_at(:binary.split(buffer <> chunk, "\n", [:global]), -1)
     response = %{response | private: Map.put(response.private, :ollixir_ndjson, buffer)}
-    Enum.reduce(lines, response, &native_line(&2, &1, dest, cast_fun))
+    Enum.reduce(lines, response, &native_line(&2, &1, dest, cast_fun, endpoint))
   end
 
-  defp native_line(response, line, dest, cast_fun) do
+  defp native_line(response, line, dest, cast_fun, endpoint) do
     cond do
-      response.private[:ollixir_ndjson_error] ->
+      response.private[:ollixir_ndjson_error] || native_terminal?(response.body, endpoint) ->
         response
 
       line in ["", "\r", " ", "\t"] ->

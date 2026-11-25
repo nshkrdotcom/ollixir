@@ -28,7 +28,9 @@ defmodule Ollixir.Multipart do
           boundary,
           "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"",
           sanitize_filename(filename),
-          "\"\r\nContent-Type: application/octet-stream\r\n\r\n",
+          "\"\r\nContent-Type: ",
+          content_type(filename),
+          "\r\n\r\n",
           file,
           "\r\n--",
           boundary,
@@ -60,7 +62,7 @@ defmodule Ollixir.Multipart do
   defp read_file({:binary, data}), do: read_file({:binary, data, "audio.wav"})
 
   defp read_file({:binary, data, filename})
-       when is_binary(data) and byte_size(data) > 0 and is_binary(filename),
+       when is_binary(data) and byte_size(data) > 0 and is_binary(filename) and filename != "",
        do: {:ok, data, filename}
 
   defp read_file(_),
@@ -87,6 +89,19 @@ defmodule Ollixir.Multipart do
           {:halt, {:error, RequestError.exception("Multipart fields must be scalar values")}}
       end
     end)
+  end
+
+  defp content_type(filename) do
+    case filename |> Path.extname() |> String.downcase() do
+      ".wav" -> "audio/wav"
+      ".mp3" -> "audio/mpeg"
+      ".flac" -> "audio/flac"
+      ".ogg" -> "audio/ogg"
+      ".opus" -> "audio/ogg"
+      ".m4a" -> "audio/mp4"
+      ".webm" -> "audio/webm"
+      _ -> "application/octet-stream"
+    end
   end
 
   defp sanitize_filename(filename) do

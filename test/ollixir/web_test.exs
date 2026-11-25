@@ -24,7 +24,6 @@ defmodule Ollixir.WebTest do
   end
 
   describe "authorization" do
-    @tag :cloud_api
     test "requires API key for cloud endpoints" do
       original = System.get_env("OLLAMA_API_KEY")
 
@@ -41,9 +40,9 @@ defmodule Ollixir.WebTest do
       end
     end
 
-    @tag :cloud_api
     test "rejects non-bearer authorization header" do
-      client = Ollixir.init(headers: [{"authorization", "Token nope"}])
+      client =
+        Ollixir.init(host: "https://ollama.com", headers: [{"authorization", "Token nope"}])
 
       assert {:error, %RequestError{reason: :invalid_api_key}} =
                Web.search(client, query: "elixir", base_url: "https://ollama.com/api")

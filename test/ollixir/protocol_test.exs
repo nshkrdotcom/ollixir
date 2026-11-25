@@ -244,6 +244,7 @@ defmodule Ollixir.ProtocolTest do
           data = IO.iodata_to_binary(request.body)
           assert :binary.match(data, "name=\"model\"\r\n\r\nm\r\n") != :nomatch
           assert :binary.match(data, "filename=\"sample.wav\"") != :nomatch
+          assert :binary.match(data, "Content-Type: audio/wav\r\n") != :nomatch
           assert :binary.match(data, audio) != :nomatch
           assert :binary.match(data, "--" <> boundary <> "--\r\n") != :nomatch
           assert :binary.match(data, "name=\"language\"\r\n\r\nes\r\n") != :nomatch

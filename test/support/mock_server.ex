@@ -509,6 +509,31 @@ defmodule Ollixir.MockServer do
 
       true ->
         case params do
+          %{"model" => "audit-truncated"} ->
+            conn
+            |> put_resp_content_type("application/x-ndjson")
+            |> send_resp(200, ~s({"response":"partial","done":false}\n))
+
+          %{"model" => "audit-fragmented"} ->
+            conn = conn |> put_resp_content_type("application/x-ndjson") |> send_chunked(200)
+            {:ok, conn} = chunk(conn, "{\"response\":\"caf" <> <<195>>)
+            {:ok, conn} = chunk(conn, <<169>> <> "\",\"done\":false}\r")
+            {:ok, conn} = chunk(conn, "\n{\"response\":\"\",\"done\":true}\n")
+            conn
+
+          %{"model" => "audit-stream-error"} ->
+            conn
+            |> put_resp_content_type("application/x-ndjson")
+            |> send_resp(
+              200,
+              ~s({"response":"partial","done":false}\n{"error":"runner failed"}\n)
+            )
+
+          %{"model" => "audit-denied"} ->
+            conn
+            |> put_resp_content_type("application/json")
+            |> send_resp(401, ~s({"error":"signin required","signin_url":"https://example.test"}))
+
           %{"format" => fmt} when is_map(fmt) ->
             respond(conn, :completion_structured)
 
@@ -549,7 +574,18 @@ defmodule Ollixir.MockServer do
     end
   end
 
-  post("/pull", do: handle_request(conn, :pull_model))
+  post "/pull" do
+    case conn.body_params do
+      %{"model" => "audit-truncated"} ->
+        conn
+        |> put_resp_content_type("application/x-ndjson")
+        |> send_resp(200, ~s({"status":"downloading","completed":1,"total":2}\n))
+
+      _ ->
+        handle_request(conn, :pull_model)
+    end
+  end
+
   post("/push", do: handle_request(conn, :push_model))
 
   head "/blobs/:digest" do
@@ -564,7 +600,19 @@ defmodule Ollixir.MockServer do
 
   post("/blobs/:digest", do: respond(conn, 200))
   post("/embeddings", do: handle_request(conn, :embeddings))
-  post("/web_search", do: respond(conn, :web_search))
+
+  post "/web_search" do
+    case conn.body_params do
+      %{"query" => "audit-redirect"} ->
+        conn
+        |> put_resp_header("location", "http://127.0.0.1:4000/api/web_fetch")
+        |> send_resp(307, "redirect")
+
+      _ ->
+        respond(conn, :web_search)
+    end
+  end
+
   post("/web_fetch", do: respond(conn, :web_fetch))
 
   get "/image" do

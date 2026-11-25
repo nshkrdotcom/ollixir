@@ -7,18 +7,41 @@ defmodule Ollixir.Transport do
   # /api, preserving any reverse-proxy prefix and Req configuration.
   def request(%Ollixir{req: req}, method, path, opts \\ []) do
     with {:ok, url} <- url(req, path) do
+      opts = Keyword.merge(opts, method: method, url: url, http_errors: :return)
+      opts = secure_options(req, opts)
+
       req
-      |> Req.request(Keyword.merge(opts, method: method, url: url, http_errors: :return))
+      |> Req.request(opts)
       |> result()
+    end
+  end
+
+  # Req strips standard Authorization on cross-origin redirects by default, but
+  # custom authentication headers (e.g. x-api-key) need not be stripped.
+  # Require callers to inspect a redirect and construct a new client instead.
+  def secure_options(req, opts) do
+    credential_headers = [
+      "authorization",
+      "proxy-authorization",
+      "cookie",
+      "x-api-key",
+      "api-key"
+    ]
+
+    if req.options[:auth] ||
+         Enum.any?(credential_headers, &(Req.Request.get_header(req, &1) != [])) do
+      Keyword.merge(opts, redirect: false, redirect_trusted: false)
+    else
+      opts
     end
   end
 
   def url(req, path) do
     base = req.options[:base_url] || req.url
 
-    case URI.parse(to_string(base)) do
+    case URI.parse(to_string(base || "")) do
       %URI{scheme: scheme, host: host} = uri
-      when scheme in ["http", "https"] and is_binary(host) ->
+      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
         prefix = (uri.path || "") |> String.trim_trailing("/") |> strip_namespace()
         {:ok, URI.to_string(%{uri | path: prefix <> path, query: nil, fragment: nil})}
 
@@ -43,6 +66,8 @@ defmodule Ollixir.Transport do
 
   def result({:error, %Req.TransportError{} = error}),
     do: {:error, ConnectionError.exception(original_error: error)}
+
+  def result({:error, %RequestError{} = error}), do: {:error, error}
 
   def result({:error, error}), do: {:error, RequestError.exception(inspect(error))}
 

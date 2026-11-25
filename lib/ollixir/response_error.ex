@@ -101,6 +101,8 @@ defmodule Ollixir.ResponseError do
     end
   end
 
+  defp extract_error(""), do: nil
+
   defp extract_error(body) when is_binary(body) do
     case Jason.decode(body) do
       {:ok, data} when is_map(data) -> extract_error(data) || body

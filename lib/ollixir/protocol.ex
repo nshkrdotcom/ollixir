@@ -6,10 +6,12 @@ defmodule Ollixir.Protocol do
   def init(%Ollixir{} = client, _kind), do: client
 
   def init(opts, kind) when is_list(opts) do
+    explicit_key? = Keyword.has_key?(opts, :api_key)
     {api_key, opts} = Keyword.pop(opts, :api_key)
+    opts = if explicit_key?, do: Keyword.put(opts, :api_key, nil), else: opts
     client = Ollixir.init(opts)
 
-    if is_binary(api_key) do
+    if is_binary(api_key) and api_key != "" do
       case kind do
         :openai -> put_header(client, "authorization", "Bearer " <> api_key)
         :anthropic -> put_header(client, "x-api-key", api_key)
@@ -22,16 +24,24 @@ defmodule Ollixir.Protocol do
   def init(opts, _kind), do: Ollixir.init(opts)
 
   defp put_header(client, name, value) do
-    %{client | req: Req.Request.put_header(client.req, name, value)}
+    req =
+      %{client.req | options: Map.delete(client.req.options, :auth)}
+      |> Req.Request.put_header(name, value)
+      |> Req.Request.put_option(:redirect, false)
+
+    %{client | req: req}
   end
 
   # Preserve provider-specific keys rather than validating them with native
   # Ollama schemas. Only the top-level keyword convenience is normalized.
   def body(params) when is_list(params) do
-    if Keyword.keyword?(params), do: body(Map.new(params)), else: invalid_body()
+    if Keyword.keyword?(params), do: normalize_fields(params), else: invalid_body()
   end
 
-  def body(params) when is_map(params) and not is_struct(params) do
+  def body(params) when is_map(params) and not is_struct(params), do: normalize_fields(params)
+  def body(_), do: invalid_body()
+
+  defp normalize_fields(params) do
     Enum.reduce_while(params, {:ok, %{}}, fn
       {key, value}, {:ok, acc} when is_atom(key) or is_binary(key) ->
         key = to_string(key)
@@ -46,8 +56,6 @@ defmodule Ollixir.Protocol do
         {:halt, invalid_body()}
     end)
   end
-
-  def body(_), do: invalid_body()
 
   defp invalid_body(), do: {:error, RequestError.exception("Expected a map or keyword list")}
 
@@ -114,8 +122,12 @@ defmodule Ollixir.Protocol do
           http_errors: :return
         )
 
+      opts = Transport.secure_options(client.req, opts)
       mode = if mode == :sse, do: {:sse, terminal_event(path)}, else: mode
-      work = fn dest -> run_stream(client.req, opts, dest, mode) end
+
+      work = fn dest ->
+        Ollixir.StreamWorker.run(fn -> run_stream(client.req, opts, dest, mode) end)
+      end
 
       case stream do
         true -> {:ok, enumerable(work)}
@@ -124,10 +136,10 @@ defmodule Ollixir.Protocol do
     end
   end
 
-  defp terminal_event("/v1/messages"), do: "message_stop"
-  defp terminal_event("/v1/responses"), do: "response.completed"
-  defp terminal_event("/v1/audio/" <> _), do: "transcript.text.done"
-  defp terminal_event(_path), do: nil
+  defp terminal_event("/v1/messages"), do: ["message_stop"]
+  defp terminal_event("/v1/responses"), do: ["response.completed", "response.incomplete"]
+  defp terminal_event("/v1/audio/" <> _), do: ["transcript.text.done"]
+  defp terminal_event(_path), do: []
 
   defp enumerable(work) do
     Stream.resource(
@@ -223,7 +235,7 @@ defmodule Ollixir.Protocol do
             error = ResponseError.exception(status: response.status, body: data)
             {:halt, %{acc | error: error}}
 
-          is_binary(terminal_event) and (event == terminal_event or type == terminal_event) ->
+          event in terminal_event or type in terminal_event ->
             send(dest, {self(), {:data, data}})
             {:halt, %{acc | terminal: true, error: nil}}
 

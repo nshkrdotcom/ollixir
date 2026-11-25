@@ -18,9 +18,17 @@ defmodule Ollixir.Media do
 
   def encode(data, :audio) when is_binary(data) do
     cond do
-      File.regular?(data) -> encode({:file, data}, :audio)
-      audio_binary?(data) -> encode({:binary, data}, :audio)
-      true -> validate_base64(data)
+      not String.valid?(data) or :binary.match(data, <<0>>) != :nomatch ->
+        encode({:binary, data}, :audio)
+
+      File.regular?(data) ->
+        encode({:file, data}, :audio)
+
+      audio_binary?(data) ->
+        encode({:binary, data}, :audio)
+
+      true ->
+        validate_base64(data)
     end
   end
 
@@ -37,5 +45,5 @@ defmodule Ollixir.Media do
   defp audio_binary?(<<"fLaC", _::binary>>), do: true
   defp audio_binary?(<<"OggS", _::binary>>), do: true
   defp audio_binary?(<<"ID3", _::binary>>), do: true
-  defp audio_binary?(data), do: not String.valid?(data)
+  defp audio_binary?(_), do: false
 end

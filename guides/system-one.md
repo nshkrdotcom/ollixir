@@ -24,7 +24,7 @@ client = Ollixir.init()
 IO.inspect(result["answers"])
 ```
 
-The state and instructions may be strings, JSON objects, or arrays. A list of
+The state and instructions may be JSON values; individual runners impose their own restrictions. A list of
 `{name, question}` pairs encodes as a JSON object in the supplied order. A map
 is convenient if question order does not matter. Do not duplicate names.
 Some decision models accept `state: nil` and supply default instructions when

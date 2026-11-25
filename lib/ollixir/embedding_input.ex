@@ -8,6 +8,9 @@ defmodule Ollixir.EmbeddingInput do
       :error ->
         {:ok, params}
 
+      {:ok, nil} ->
+        {:ok, Keyword.delete(params, :input)}
+
       {:ok, input} ->
         with {:ok, input} <- normalize_input(input) do
           {:ok, Keyword.put(params, :input, input)}

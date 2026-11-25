@@ -34,7 +34,8 @@ an unauthorized account as a valid identity.
 
 `signout/1` and `disconnect/2` change account state. Use them only deliberately.
 `disconnect/2` takes an already encoded key identifier, not a private key or a
-raw SSH key. Successful status-only operations return `{:ok, true}`; errors
+raw SSH key. On current local servers this deprecated route aliases signout,
+so it is not a targeted key-revocation operation. Successful status-only operations return `{:ok, true}`; errors
 are not converted to success.
 
 Experimental web methods differ from the existing `Ollixir.web_search/2`

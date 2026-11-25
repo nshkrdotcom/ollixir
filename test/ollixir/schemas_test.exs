@@ -12,14 +12,16 @@ defmodule Ollixir.SchemasTest do
                )
     end
 
-    test "requires messages parameter" do
-      assert {:error, _} =
+    test "defaults messages to an empty list for preload" do
+      assert {:ok, opts} =
                NimbleOptions.validate(
                  [
                    model: "llama2"
                  ],
                  Ollixir.Schemas.schema(:chat)
                )
+
+      assert opts[:messages] == []
     end
 
     test "validates stream option type" do
