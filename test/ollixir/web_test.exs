@@ -1,5 +1,5 @@
 defmodule Ollixir.WebTest do
-  use Supertester.ExUnitFoundation, isolation: :full_isolation, async: false
+  use ExUnit.Case, async: false
 
   alias Ollixir.{RequestError, Web}
   alias Ollixir.Web.{FetchResponse, SearchResponse}

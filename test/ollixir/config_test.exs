@@ -1,6 +1,6 @@
 defmodule Ollixir.ConfigTest do
   # Environment modification not async-safe
-  use Supertester.ExUnitFoundation, isolation: :full_isolation, async: false
+  use ExUnit.Case, async: false
 
   describe "environment variable configuration" do
     test "OLLAMA_HOST sets default base URL" do

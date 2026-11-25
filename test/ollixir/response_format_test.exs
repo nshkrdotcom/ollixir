@@ -1,5 +1,5 @@
 defmodule Ollixir.ResponseFormatTest do
-  use Supertester.ExUnitFoundation, isolation: :full_isolation, async: false
+  use ExUnit.Case, async: false
 
   alias Ollixir.Types.{
     ChatResponse,
