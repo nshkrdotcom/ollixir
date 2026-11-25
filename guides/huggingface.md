@@ -31,7 +31,7 @@ mix deps.get
 >
 > If you don't need the discovery features and already know the repository and
 > quantization you want, you can skip `hf_hub` entirely and use Ollama directly
-> with the `hf.co/{repo}:{quantization}` model format. See [Direct Ollama Usage](#direct-ollama-usage).
+> with the `hf.co/{repo}:{quantization}` model format. See [Direct Ollixir Usage](#direct-ollixir-usage).
 
 ## Overview
 
