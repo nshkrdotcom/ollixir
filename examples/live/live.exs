@@ -50,7 +50,9 @@ defmodule OllixirReleaseLive do
     [
       {"Inventory, discovery, native and OpenAI model metadata", fn -> discovery(c, output) end},
       {"Native generate, NDJSON and Task chat", fn -> native(c) end},
-      {"Native thinking, JSON format and a complete tool round trip", fn -> tools(c) end},
+      {"Native thinking", fn -> thinking(c) end},
+      {"Native JSON format", fn -> structured(c) end},
+      {"Native tool call and result history", fn -> tools(c) end},
       {"Fill-in-the-middle", fn -> fim(c) end},
       {"Text and legacy embeddings, OpenAI base64 embeddings", fn -> embeddings(c) end},
       {"Disposable create, streamed progress, copy, load, unload, delete and blob",
@@ -222,14 +224,28 @@ defmodule OllixirReleaseLive do
     drain(pid)
   end
 
-  defp tools(c) do
-    opts = [model: model("TEXT"), keep_alive: 0, options: %{num_predict: 256}]
-
+  defp thinking(c) do
     answer =
-      ok(Ollixir.generate(c, opts ++ [prompt: "What is 2 plus 2? Think briefly.", think: true]))
+      ok(
+        Ollixir.generate(c,
+          model: model("TEXT"),
+          prompt: "What is 2 plus 2? Give the answer briefly.",
+          think: true,
+          keep_alive: 0,
+          options: %{num_predict: 1024}
+        )
+      )
 
-    text!(answer["thinking"])
-    text!(answer["response"])
+    text!(answer["thinking"], "Expected thinking text")
+
+    text!(
+      answer["response"],
+      "Expected a final answer after thinking (done_reason: #{inspect(answer["done_reason"])})"
+    )
+  end
+
+  defp structured(c) do
+    opts = [model: model("TEXT"), keep_alive: 0, options: %{num_predict: 128}]
 
     data =
       ok(
@@ -246,7 +262,10 @@ defmodule OllixirReleaseLive do
 
     assert %{"city" => city} = Jason.decode!(data["response"])
     assert String.downcase(city) == "paris"
+  end
 
+  defp tools(c) do
+    opts = [model: model("TEXT"), keep_alive: 0, options: %{num_predict: 256}]
     history = [%{role: "user", content: "Use the lookup tool to find the temperature in Paris."}]
 
     tool = %{
@@ -272,10 +291,13 @@ defmodule OllixirReleaseLive do
     result = %{role: "tool", tool_name: "lookup", content: "Paris is 18 degrees Celsius."}
 
     text!(
-      get_in(ok(Ollixir.chat(c, chat ++ [messages: history ++ [message, result]])), [
-        "message",
-        "content"
-      ])
+      get_in(
+        ok(Ollixir.chat(c, opts ++ [think: false, messages: history ++ [message, result]])),
+        [
+          "message",
+          "content"
+        ]
+      )
     )
   end
 
@@ -451,18 +473,18 @@ defmodule OllixirReleaseLive do
   end
 
   defp speech(c, output) do
-    english = Path.join(output, "english.wav")
-    french = Path.join(output, "french.wav")
+    english = Path.join(output, "speech-english.wav")
+    french = Path.join(output, "speech-french.wav")
     File.rm(english)
     File.rm(french)
-    sample(c, model("SPEECH"), "The capital of France is Paris.", english, "LIVE_ENGLISH_WAV")
+    sample(c, model("SPEECH"), model("SPEECH_VOICE"), "The capital of France is Paris.", english)
 
     sample(
       c,
       model("SPEECH_FR"),
+      model("SPEECH_FR_VOICE"),
       "La capitale de la France est Paris.",
-      french,
-      "LIVE_FRENCH_WAV"
+      french
     )
   end
 
@@ -504,13 +526,19 @@ defmodule OllixirReleaseLive do
              String.contains?(String.downcase(translation), "capital of")
   end
 
-  defp sample(c, model, text, path, override) do
+  defp sample(c, model, voice, text, path) do
     assert <<"RIFF", _::binary-size(4), "WAVE", _::binary>> =
-             ok(OpenAI.speech(c, model: model, input: text, response_format: "wav"))
+             ok(OpenAI.speech(c, model: model, voice: voice, input: text, response_format: "wav"))
 
     pcm =
       c
-      |> OpenAI.speech(model: model, input: text, response_format: "pcm", stream: true)
+      |> OpenAI.speech(
+        model: model,
+        voice: voice,
+        input: text,
+        response_format: "pcm",
+        stream: true
+      )
       |> ok()
       |> Enum.to_list()
       |> IO.iodata_to_binary()
@@ -518,20 +546,14 @@ defmodule OllixirReleaseLive do
     size = byte_size(pcm)
     assert size > 0 and rem(size, 2) == 0
 
-    case System.get_env(override) do
-      nil ->
-        # Stable speech PCM is 24 kHz, signed 16-bit mono. Record the known
-        # sizes, since the server's streaming WAV header cannot know them.
-        File.write!(
-          path,
-          <<"RIFF", 36 + size::little-32, "WAVEfmt ", 16::little-32, 1::little-16, 1::little-16,
-            24_000::little-32, 48_000::little-32, 2::little-16, 16::little-16, "data",
-            size::little-32, pcm::binary>>
-        )
-
-      original ->
-        File.cp!(original, path)
-    end
+    # Stable speech PCM is 24 kHz, signed 16-bit mono. Record the known
+    # sizes, since the server's streaming WAV header cannot know them.
+    File.write!(
+      path,
+      <<"RIFF", 36 + size::little-32, "WAVEfmt ", 16::little-32, 1::little-16, 1::little-16,
+        24_000::little-32, 48_000::little-32, 2::little-16, 16::little-16, "data",
+        size::little-32, pcm::binary>>
+    )
   end
 
   defp mixed(c, output) do
@@ -550,7 +572,12 @@ defmodule OllixirReleaseLive do
   end
 
   defp fixture(output, filename, variable) do
-    path = System.get_env(variable, Path.join(output, filename))
+    independent = Path.join(output, filename)
+    generated = Path.join(output, "speech-" <> filename)
+
+    path =
+      System.get_env(variable) || if(File.regular?(independent), do: independent, else: generated)
+
     assert File.regular?(path), "Missing audio fixture. Fix the speech check or set #{variable}."
     path
   end
@@ -595,7 +622,9 @@ defmodule OllixirReleaseLive do
   defp contains_paris?(text),
     do: is_binary(text) and String.contains?(String.downcase(text), "paris")
 
-  defp text!(text), do: assert(is_binary(text) and String.trim(text) != "")
+  defp text!(text, message \\ "Expected nonempty text"),
+    do: assert(is_binary(text) and String.trim(text) != "", message)
+
   defp model(role), do: System.fetch_env!("LIVE_" <> role)
   defp image, do: System.get_env("LIVE_IMAGE", Path.expand("../../assets/ollixir.png", __DIR__))
   defp messages, do: [%{role: "user", content: "Say hello in one sentence."}]

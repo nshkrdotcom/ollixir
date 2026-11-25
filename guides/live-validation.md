@@ -67,7 +67,7 @@ tags. The isolated store can retain uploaded or cached blobs.
 | Vision | [gemma3:4b](https://ollama.com/library/gemma3:4b) and the repository image. Native image chat. |
 | System One | [nimble](https://ollama.com/library/nimble) for ordered choice, noul, and score. [clef-flash](https://ollama.com/library/clef-flash) for an image question. Answer shape and token usage are checked. |
 | Mixed embedding | [embeddinggemma-2:740m-q8_0](https://ollama.com/library/embeddinggemma-2:740m-q8_0) is a candidate with the audio and vision encoders. It must return three vectors from one text/image/audio request. A tag that serves only text/image on this runner leaves mixed audio coverage open. |
-| Speech and audio input | [phonon](https://ollama.com/library/phonon) generates English and French samples. [lfm3-audio](https://ollama.com/library/lfm3-audio) exercises transcription and translation. Check WAV/PCM, transcript text and segments, and the final SSE event. |
+| Speech and audio input | [lfm3-audio:2b-q4_K_M](https://ollama.com/library/lfm3-audio:2b-q4_K_M) exercises speech in English and French, transcription, and translation. The GGUF tag was pulled on Linux and uses the llama.cpp runner. Check WAV/PCM, transcript text and segments, and the final SSE event. |
 | Provider compatibility | The text model exercises OpenAI models, chat, completions, embeddings, Responses, and compact, plus Anthropic Messages. Stream checks require the relevant protocol terminal. |
 | Model management and account errors | Disposable blob and model management, typed manifests, server discovery, missing-model errors, and cloud-disabled identity. |
 
@@ -85,11 +85,17 @@ examples/live/live.sh check
 
 Other overrides are `LIVE_EMBED`, `LIVE_VISION`, `LIVE_FIM`, `LIVE_DECISION`,
 `LIVE_DECISION_IMAGE`, `LIVE_MULTIMODAL`, `LIVE_ASR`, `LIVE_SPEECH`, and
-`LIVE_SPEECH_FR`. `LIVE_IMAGE` selects an alternate image. If speech synthesis
-sounds wrong, listen to `english.wav` and `french.wav` in the results directory.
-For independent ASR fixtures, set `LIVE_ENGLISH_WAV` and `LIVE_FRENCH_WAV` to
-short recordings of “The capital of France is Paris” and “La capitale de la
-France est Paris”. The check still exercises speech synthesis separately.
+`LIVE_SPEECH_FR`. The speech defaults reuse the ASR model and select voices
+with `LIVE_SPEECH_VOICE` and `LIVE_SPEECH_FR_VOICE`. `LIVE_IMAGE` selects an
+alternate image. The speech check writes `speech-english.wav` and
+`speech-french.wav` for listening and as fallback input fixtures.
+
+For independent input fixtures, run `examples/live/live.sh fixtures` if
+`espeak-ng` is installed. Alternatively, set `LIVE_ENGLISH_WAV` and
+`LIVE_FRENCH_WAV` to short recordings of “The capital of France is Paris”
+and “La capitale de la France est Paris”. Explicit recordings take precedence
+over eSpeak recordings and synthesized fallback samples. This lets
+transcription, translation and mixed embeddings run even when speech fails.
 
 ## Hosted, Hugging Face and push checks
 

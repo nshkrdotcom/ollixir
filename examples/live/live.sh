@@ -20,8 +20,10 @@ export LIVE_DECISION="${LIVE_DECISION:-nimble:latest}"
 export LIVE_DECISION_IMAGE="${LIVE_DECISION_IMAGE:-clef-flash:latest}"
 export LIVE_MULTIMODAL="${LIVE_MULTIMODAL:-embeddinggemma-2:740m-q8_0}"
 export LIVE_ASR="${LIVE_ASR:-lfm3-audio:2b-q4_K_M}"
-export LIVE_SPEECH="${LIVE_SPEECH:-phonon:en}"
-export LIVE_SPEECH_FR="${LIVE_SPEECH_FR:-phonon:fr}"
+export LIVE_SPEECH="${LIVE_SPEECH:-$LIVE_ASR}"
+export LIVE_SPEECH_FR="${LIVE_SPEECH_FR:-$LIVE_SPEECH}"
+export LIVE_SPEECH_VOICE="${LIVE_SPEECH_VOICE:-female-american-english}"
+export LIVE_SPEECH_FR_VOICE="${LIVE_SPEECH_FR_VOICE:-female-french}"
 export OLLIXIR_RELEASE_LIVE_HOST="$url"
 
 server_version() { curl -fsS --max-time 5 "$url/api/version"; }
@@ -98,6 +100,13 @@ case "${1:-help}" in
     [[ -x "$ollama" ]] || die "Run $0 setup first."
     HOME="$state/home" run_cli signin
     ;;
+  fixtures)
+    require espeak-ng
+    mkdir -p "$state/results"
+    espeak-ng -v en-us -w "$state/results/english.wav" 'The capital of France is Paris.'
+    espeak-ng -v fr -w "$state/results/french.wav" 'La capitale de la France est Paris.'
+    printf 'Independent audio fixtures written under %s/results\n' "$state"
+    ;;
   mock)
     require mix
     exec env -u OLLAMA_HOST -u OLLAMA_API_KEY mix test
@@ -119,6 +128,7 @@ Ollixir 0.2.0 live validation (see guides/live-validation.md)
   setup        Download and verify the isolated Ollama 0.40.18 Linux bundle
   serve        Start the isolated server in the foreground with cloud disabled
   models       Download the local fixtures that are missing
+  fixtures     Generate independent WAV samples with espeak-ng
   mock         Run the standard ExUnit suite
   check        Run all local live checks and summarize failures
   serve-cloud  Start the same isolated server with cloud enabled
