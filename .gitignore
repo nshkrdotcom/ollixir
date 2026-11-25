@@ -24,3 +24,6 @@ ollama-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# Local upstream Ollama checkout.
+/ollama/
