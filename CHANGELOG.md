@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Responses compaction, audio transcription/translation, and speech.
 - `Ollixir.Anthropic` for Messages with JSON and SSE responses.
 - Mocked request/response and streaming regressions; guides for the new APIs.
+- Reusable live validation commands and fixtures for Ollama v0.40.18.
 
 ### Changed
 
@@ -39,8 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Preserve proxy mount paths and sibling API namespaces, and accept bare IPv6
-  hosts. Support explicit API keys and prevent credential-bearing redirects;
+- Preserve proxy mount paths and sibling API namespaces, including mounts ending
+  in `/v1`, and accept bare IPv6 hosts. Support explicit API keys and prevent credential-bearing redirects;
   hosted web calls no longer inherit credentials from a different origin.
 - Preserve HTTP error bodies, disable automatic retries for native mutations,
   and detect incomplete native streams instead of reporting false success.

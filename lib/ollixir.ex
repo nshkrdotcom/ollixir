@@ -450,16 +450,6 @@ defmodule Ollixir do
   defp cast_fun_for(:status, :struct), do: &Ollixir.Types.StatusResponse.from_map/1
   defp cast_fun_for(_endpoint, _format), do: nil
 
-  defp apply_cast({:ok, %Task{} = task}, _cast_fun), do: {:ok, task}
-
-  defp apply_cast({:ok, enum}, cast_fun) when is_function(enum) do
-    if is_function(cast_fun) do
-      {:ok, Stream.map(enum, cast_fun)}
-    else
-      {:ok, enum}
-    end
-  end
-
   defp apply_cast({:ok, body}, cast_fun) when is_map(body) and is_function(cast_fun) do
     {:ok, cast_fun.(body)}
   rescue
@@ -2015,7 +2005,7 @@ defmodule Ollixir do
       endpoint = String.trim_leading(url, "/")
       streaming_endpoint = endpoint in ["chat", "generate", "create", "pull", "push"]
       opts = Keyword.merge(opts, method: method, url: absolute_url, http_errors: :return)
-      opts = Transport.secure_options(req, opts)
+      opts = Transport.secure_options(opts)
       stream_opt = get_in(opts, [:json, :stream])
 
       opts =

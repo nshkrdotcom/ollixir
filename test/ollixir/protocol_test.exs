@@ -58,10 +58,11 @@ defmodule Ollixir.ProtocolTest do
   end
 
   test "models routes and base URL namespace handling" do
-    for base <- [
-          "http://ollama.test/proxy",
-          "http://ollama.test/proxy/api",
-          "http://ollama.test/proxy/v1"
+    for {base, prefix} <- [
+          {"http://ollama.test/proxy", "/proxy"},
+          {"http://ollama.test/proxy/api", "/proxy"},
+          {"http://ollama.test/proxy/v1", "/proxy"},
+          {"http://ollama.test/proxy/v1/api", "/proxy/v1"}
         ] do
       c =
         client(
@@ -69,9 +70,9 @@ defmodule Ollixir.ProtocolTest do
             assert request.method == :get
 
             assert request.url.path in [
-                     "/proxy/v1/models",
-                     "/proxy/v1/models/model:tag",
-                     "/proxy/v1/models/model%3Atag"
+                     prefix <> "/v1/models",
+                     prefix <> "/v1/models/model:tag",
+                     prefix <> "/v1/models/model%3Atag"
                    ]
 
             json(request, %{"data" => []})

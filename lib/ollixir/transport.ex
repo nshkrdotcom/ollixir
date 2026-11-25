@@ -8,7 +8,7 @@ defmodule Ollixir.Transport do
   def request(%Ollixir{req: req}, method, path, opts \\ []) do
     with {:ok, url} <- url(req, path) do
       opts = Keyword.merge(opts, method: method, url: url, http_errors: :return)
-      opts = secure_options(req, opts)
+      opts = secure_options(opts)
 
       req
       |> request_req(opts)
@@ -17,7 +17,7 @@ defmodule Ollixir.Transport do
   end
 
   # Custom request steps can attach credentials after options are selected.
-  def secure_options(_req, opts) do
+  def secure_options(opts) do
     Keyword.merge(opts, redirect: false, redirect_trusted: false)
   end
 
@@ -74,7 +74,6 @@ defmodule Ollixir.Transport do
 
   defp strip_namespace(path) do
     cond do
-      String.ends_with?(path, "/v1/api") -> String.trim_trailing(path, "/v1/api")
       String.ends_with?(path, "/api") -> String.trim_trailing(path, "/api")
       String.ends_with?(path, "/v1") -> String.trim_trailing(path, "/v1")
       true -> path

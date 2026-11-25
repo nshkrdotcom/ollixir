@@ -122,7 +122,7 @@ defmodule Ollixir.Protocol do
           http_errors: :return
         )
 
-      opts = Transport.secure_options(client.req, opts)
+      opts = Transport.secure_options(opts)
       mode = if mode == :sse, do: {:sse, terminal_event(path)}, else: mode
 
       work = fn dest ->
