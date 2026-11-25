@@ -6,7 +6,9 @@ defmodule Ollixir.AuditRegressionsTest do
   defp body(request), do: request.body |> IO.iodata_to_binary() |> Jason.decode!()
 
   defp client(adapter) do
-    Ollixir.init(Req.new(base_url: "http://ollama.test/mount/v1", adapter: adapter))
+    Ollixir.init(
+      Req.new([base_url: "http://ollama.test/mount/v1"] ++ Ollixir.TestAdapter.options(adapter))
+    )
   end
 
   defp local, do: Ollixir.init(host: "http://localhost:4000", api_key: nil)
@@ -152,20 +154,27 @@ defmodule Ollixir.AuditRegressionsTest do
              )
   end
 
+  defmodule HostedWebAdapter do
+    import ExUnit.Assertions
+
+    def run(request) do
+      assert request.url.host == "web.test"
+      assert request.url.path == "/mount/api/web_search"
+      assert Req.Request.get_header(request, "authorization") == ["Bearer scoped-web-key"]
+      assert Req.Request.get_header(request, "cookie") == []
+      assert Req.Request.get_header(request, "x-api-key") == []
+      {request, Req.Response.json(%{"results" => []})}
+    end
+  end
+
   test "web calls to a different origin don't inherit local credentials" do
     c =
       Ollixir.init(
-        host: "https://local.test/api",
-        api_key: "local-secret",
-        headers: [{"cookie", "session=fake"}, {"x-api-key", "local-provider-secret"}],
-        adapter: fn request ->
-          assert request.url.host == "web.test"
-          assert request.url.path == "/mount/api/web_search"
-          assert Req.Request.get_header(request, "authorization") == ["Bearer scoped-web-key"]
-          assert Req.Request.get_header(request, "cookie") == []
-          assert Req.Request.get_header(request, "x-api-key") == []
-          {request, Req.Response.json(%{"results" => []})}
-        end
+        [
+          host: "https://local.test/api",
+          api_key: "local-secret",
+          headers: [{"cookie", "session=fake"}, {"x-api-key", "local-provider-secret"}]
+        ] ++ Ollixir.TestAdapter.options(HostedWebAdapter)
       )
 
     assert {:ok, _} =
@@ -307,7 +316,7 @@ defmodule Ollixir.AuditRegressionsTest do
           "http://host:65536",
           "http://[invalid]"
         ] do
-      c = Ollixir.init(host: host, adapter: adapter)
+      c = Ollixir.init([host: host] ++ Ollixir.TestAdapter.options(adapter))
       assert {:error, %RequestError{}} = Ollixir.version(c)
     end
 
@@ -342,12 +351,14 @@ defmodule Ollixir.AuditRegressionsTest do
 
     req =
       Req.new(
-        base_url: "http://localhost",
-        receive_timeout: 100,
-        adapter: fn _ ->
-          send(owner, {:started, self()})
-          Process.sleep(:infinity)
-        end
+        [
+          base_url: "http://localhost",
+          receive_timeout: 100
+        ] ++
+          Ollixir.TestAdapter.options(fn _ ->
+            send(owner, {:started, self()})
+            Process.sleep(:infinity)
+          end)
       )
 
     assert {:ok, stream} = Ollixir.generate(Ollixir.init(req), model: "m", stream: true)

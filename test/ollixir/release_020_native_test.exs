@@ -5,7 +5,9 @@ defmodule Ollixir.Release020NativeTest do
   alias Ollixir.Types.{ChatResponse, Message, ShowManifestsResponse, SystemOneResponse}
 
   defp client(adapter) do
-    Ollixir.init(Req.new(base_url: "http://ollama.test/proxy/api", adapter: adapter))
+    Ollixir.init(
+      Req.new([base_url: "http://ollama.test/proxy/api"] ++ Ollixir.TestAdapter.options(adapter))
+    )
   end
 
   defp body(request), do: request.body |> IO.iodata_to_binary() |> Jason.decode!()
@@ -324,21 +326,23 @@ defmodule Ollixir.Release020NativeTest do
     for suffix <- ["", "/api", "/v1"] do
       c =
         Ollixir.init(
-          base_url: "http://ollama.test/proxy" <> suffix,
-          adapter: fn request ->
-            assert request.url.host == "ollama.test"
-            assert request.method == :post
+          [
+            base_url: "http://ollama.test/proxy" <> suffix
+          ] ++
+            Ollixir.TestAdapter.options(fn request ->
+              assert request.url.host == "ollama.test"
+              assert request.method == :post
 
-            case request.url.path do
-              "/proxy/api/experimental/web_search" ->
-                assert body(request)["query"] == "test"
-                json(request, %{"results" => []})
+              case request.url.path do
+                "/proxy/api/experimental/web_search" ->
+                  assert body(request)["query"] == "test"
+                  json(request, %{"results" => []})
 
-              "/proxy/api/experimental/web_fetch" ->
-                assert body(request)["url"] == "https://example.test"
-                json(request, %{"title" => "Example", "content" => "text"})
-            end
-          end
+                "/proxy/api/experimental/web_fetch" ->
+                  assert body(request)["url"] == "https://example.test"
+                  json(request, %{"title" => "Example", "content" => "text"})
+              end
+            end)
         )
 
       assert {:ok, %Ollixir.Web.SearchResponse{results: []}} =

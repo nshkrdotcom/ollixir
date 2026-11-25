@@ -4,7 +4,7 @@ defmodule Ollixir.ProtocolTest do
   alias Ollixir.{Anthropic, OpenAI, RequestError, ResponseError}
 
   defp client(adapter, base \\ "http://ollama.test/proxy/api"),
-    do: OpenAI.init(Req.new(base_url: base, adapter: adapter))
+    do: OpenAI.init(Req.new([base_url: base] ++ Ollixir.TestAdapter.options(adapter)))
 
   defp body(request), do: request.body |> IO.iodata_to_binary() |> Jason.decode!()
   defp json(request, data), do: {request, Req.Response.json(data)}
@@ -95,15 +95,20 @@ defmodule Ollixir.ProtocolTest do
 
     c =
       Anthropic.init(
-        base_url: "http://ollama.test/proxy/v1",
-        api_key: "test-key",
-        adapter: fn request ->
-          assert request.url.path == "/proxy/v1/messages"
-          assert Req.Request.get_header(request, "x-api-key") == ["test-key"]
-          assert body(request) == params |> Map.new() |> Jason.encode!() |> Jason.decode!()
+        [
+          base_url: "http://ollama.test/proxy/v1",
+          api_key: "test-key"
+        ] ++
+          Ollixir.TestAdapter.options(fn request ->
+            assert request.url.path == "/proxy/v1/messages"
+            assert Req.Request.get_header(request, "x-api-key") == ["test-key"]
+            assert body(request) == params |> Map.new() |> Jason.encode!() |> Jason.decode!()
 
-          json(request, %{"type" => "message", "content" => [%{"type" => "text", "text" => "hi"}]})
-        end
+            json(request, %{
+              "type" => "message",
+              "content" => [%{"type" => "text", "text" => "hi"}]
+            })
+          end)
       )
 
     assert {:ok, %{"type" => "message", "content" => [%{"text" => "hi"}]}} =
@@ -113,12 +118,14 @@ defmodule Ollixir.ProtocolTest do
   test "OpenAI explicit bearer authentication" do
     c =
       OpenAI.init(
-        base_url: "http://ollama.test",
-        api_key: "test-key",
-        adapter: fn request ->
-          assert Req.Request.get_header(request, "authorization") == ["Bearer test-key"]
-          json(request, %{"data" => []})
-        end
+        [
+          base_url: "http://ollama.test",
+          api_key: "test-key"
+        ] ++
+          Ollixir.TestAdapter.options(fn request ->
+            assert Req.Request.get_header(request, "authorization") == ["Bearer test-key"]
+            json(request, %{"data" => []})
+          end)
       )
 
     assert {:ok, _} = OpenAI.models(c)
