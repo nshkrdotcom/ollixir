@@ -5,20 +5,22 @@ Examples demonstrating Ollixir features, designed to run against a real Ollama s
 ## Run everything
 
 ```bash
-./examples/run_all.sh
+bash examples/run_all.sh
 ```
 
 The runner will:
 
 - Verify the Ollama server is reachable (default: `http://localhost:11434`).
 - Pull required models if the `ollama` CLI is available (`llama3.2`, `nomic-embed-text`, `llava`, `deepseek-r1:1.5b`, `codellama:7b-code`).
-- Run every example (except the MCP stdio server), including the interactive chat history and LiveView module compile.
+- Run the bundled example list, including the chat-history and LiveView demos.
+- Run the Hugging Face demos, which may download model weights. Run the live
+  validation profiles and the MCP stdio server separately.
 - Skip cloud/web examples if `OLLAMA_API_KEY` is not set (invalid keys report 401/403).
 - Multimodal examples require a compatible model (`llava`). If not installed, they print a prompt.
 - Thinking examples use `deepseek-r1:1.5b` (supports `think`).
 - Skip custom model creation unless `RUN_CREATE_MODEL=1` (it writes a new local model).
 
-Run `./examples/run_all.sh --help` to see optional skips.
+Run `bash examples/run_all.sh --help` to see optional skips.
 
 ## Run a single example
 

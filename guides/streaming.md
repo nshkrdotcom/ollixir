@@ -7,12 +7,12 @@ provides two streaming modes to fit different use cases.
 
 | Mode | Option | Returns | Best For |
 |------|--------|---------|----------|
-| Enumerable | `stream: true` | `Stream.t()` | Scripts, one-off processing |
-| Process | `stream: pid` | `Task.t()` | GenServers, LiveView |
+| Enumerable | `stream: true` | `{:ok, enumerable}` | Scripts, one-off processing |
+| Process | `stream: pid` | `{:ok, task}` | GenServers, LiveView |
 
 ## Enumerable Mode
 
-When `stream: true`, you receive a lazy `Stream` that yields response chunks.
+With `stream: true`, the request starts when you enumerate the stream.
 
 ```elixir
 {:ok, stream} = Ollixir.chat(client,
@@ -34,17 +34,15 @@ end)
 - Easy to compose with other Stream operations
 - Works well in scripts and one-off tasks
 
-### Cons
-- Uses `receive/0` internally
-- **Not safe in GenServer callbacks** (blocks the process)
+Enumeration blocks the calling process while waiting for chunks. Use process
+mode when a GenServer or LiveView must stay responsive.
 
 ### Collecting Results
 
 ```elixir
-chunks = Enum.to_list(stream)
-full_response = chunks
-  |> Enum.map(& &1["message"]["content"])
-  |> Enum.join("")
+full_response = Enum.map_join(stream, fn chunk ->
+  get_in(chunk, ["message", "content"]) || ""
+end)
 ```
 
 ## Process Mode
@@ -61,17 +59,17 @@ When `stream: pid`, messages are sent to the specified process.
 # Messages arrive as:
 # {task_pid, {:data, %{"message" => ..., "done" => false}}}
 # {task_pid, {:data, %{"message" => ..., "done" => true}}}
-# {task_ref, {:ok, %Req.Response{status: 200}}}
+# {task_ref, {:ok, %{"message" => %{"content" => full_response}, "done" => true}}}
 ```
 
 ### Pros
 - Non-blocking for the caller
-- Safe in GenServer/LiveView callbacks
-- Proper OTP supervision
+- Lets GenServer and LiveView callbacks return while the request runs
 
 ### Cons
 - More setup required
-- Must handle messages explicitly
+- The returned task is linked to its caller. Handle chunk messages and the
+  task result, and consume the receiver mailbox promptly.
 
 ## Phoenix LiveView Integration
 
@@ -98,30 +96,23 @@ defmodule MyAppWeb.ChatLive do
     )}
   end
 
-  # Handle streaming chunks
-  def handle_info({pid, {:data, %{"done" => false} = chunk}}, socket)
-      when pid == socket.assigns.task.pid do
+  def handle_info({pid, {:data, chunk}}, %{assigns: %{task: %Task{pid: pid}}} = socket) do
     content = get_in(chunk, ["message", "content"]) || ""
     {:noreply, update(socket, :current_response, &(&1 <> content))}
   end
 
-  # Handle stream completion
-  def handle_info({pid, {:data, %{"done" => true}}}, socket)
-      when pid == socket.assigns.task.pid do
-    messages = socket.assigns.messages ++ [
-      %{role: "assistant", content: socket.assigns.current_response}
-    ]
-    {:noreply, assign(socket,
-      messages: messages,
-      streaming: false,
-      current_response: ""
-    )}
-  end
-
-  # Handle task completion
-  def handle_info({ref, {:ok, _response}}, socket) do
+  def handle_info({ref, result}, %{assigns: %{task: %Task{ref: ref}}} = socket) do
     Process.demonitor(ref, [:flush])
-    {:noreply, socket}
+    socket = assign(socket, streaming: false, current_response: "", task: nil)
+
+    case result do
+      {:ok, %{"message" => %{"content" => content}}} ->
+        message = %{role: "assistant", content: content}
+        {:noreply, update(socket, :messages, &(&1 ++ [message]))}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, error: Exception.message(reason))}
+    end
   end
 end
 ```
@@ -134,19 +125,16 @@ end
 try do
   stream |> Stream.each(&process/1) |> Stream.run()
 rescue
-  e in Ollixir.ResponseError ->
+  e in [Ollixir.ConnectionError, Ollixir.RequestError, Ollixir.ResponseError] ->
     Logger.error("Stream error: #{e.message}")
 end
 ```
 
 ### Process Mode
 
-```elixir
-def handle_info({ref, {:error, reason}}, socket) do
-  Process.demonitor(ref, [:flush])
-  {:noreply, assign(socket, error: reason, streaming: false)}
-end
-```
+The linked task reports `{:error, reason}` on failure. In a script, use
+`Task.await/2` for the result. In a callback, match the task reference as in
+the LiveView example above.
 
 ## Typed Streaming (Optional)
 

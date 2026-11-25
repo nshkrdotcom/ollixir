@@ -22,7 +22,8 @@ Pass `api_key:` to set an `x-api-key` header if required by your deployment.
 Custom headers (including an `anthropic-version` header) can be provided using
 Req options. The server controls which model capabilities are supported.
 `messages/2` (alias `message/2`) requires `model`, `messages`, and `max_tokens`.
-The snapshot does not expose a separate token-counting endpoint.
+Ollama v0.40.18 exposes Messages on this route. The stream ends with
+`message_stop`.
 
 ## Streaming
 

@@ -12,7 +12,7 @@ client = Ollixir.OpenAI.init(base_url: "http://localhost:11434")
 
 {:ok, response} = Ollixir.OpenAI.chat_completions(client,
   model: "llama3.2",
-  messages: [%{role: "user", content: "Hello"}],
+  messages: [%{role: "user", content: "Return a JSON object with a greeting field."}],
   response_format: %{type: "json_object"}
 )
 ```
@@ -54,8 +54,11 @@ Enum.each(stream, &IO.inspect/1)
 
 The lazy enumerable emits decoded SSE data objects, not lines or `[DONE]`.
 Chunk boundaries are independent of events. Early termination closes the worker.
+Chat and text completions end with `[DONE]`. Responses ends with
+`response.completed` or `response.incomplete`. Transcription and translation
+streams end with `transcript.text.done`.
 With `stream: self()`, receive `{task.pid, {:data, payload}}` messages and call
-`Task.await(task)` for `{:ok, :done}` or `{:error, error}`. Enumeration raises
+`Task.await(task, 120_000)` for `{:ok, :done}` or `{:error, error}`. Enumeration raises
 on transport, HTTP, or stream decoding errors. Responses and chat chunks are
 not merged into a synthesized provider response; accumulate them as needed.
 

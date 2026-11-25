@@ -1,11 +1,12 @@
 # Cloud API
 
 Ollama provides cloud capabilities including web search, web fetch, cloud models,
-and a hosted API. This guide covers all cloud features.
+and a hosted API.
 
 ## API Key Setup
 
-Cloud features require an Ollama API key:
+Direct hosted calls use an Ollama API key. For cloud inference through a local
+server, sign in with `ollama signin`.
 
 1. Create an account at https://ollama.com
 2. Generate a key at https://ollama.com/settings/keys
@@ -15,7 +16,8 @@ Cloud features require an Ollama API key:
 export OLLAMA_API_KEY="your_api_key_here"
 ```
 
-The client automatically uses `OLLAMA_API_KEY` when set.
+Client initialization uses `OLLAMA_API_KEY` as the default bearer token. For
+local calls that do not need it, initialize with `api_key: nil`.
 
 ## Web Search
 
@@ -136,36 +138,8 @@ client = Ollixir.init()
 
 ### Available Cloud Models
 
-| Model | Parameters | Context | Features |
-|-------|-----------|---------|----------|
-| `cogito-2.1:671b-cloud` | 671B | 160K | General purpose, MIT license |
-| `deepseek-v3.1:671b-cloud` | 671B | 160K | Thinking, tools, coding |
-| `deepseek-v3.2:cloud` | - | 160K | Reasoning, agentic |
-| `devstral-2:123b-cloud` | 123B | 256K | Agentic coding |
-| `devstral-small-2:24b-cloud` | 24B | 256K | Agentic coding |
-| `gemini-3-flash-preview:cloud` | - | 1M | Vision, thinking |
-| `glm-4.6:cloud` | - | 198K | Coding, reasoning, agentic |
-| `glm-4.7:cloud` | - | 198K | Coding, tool use |
-| `glm-5:cloud` | 744B (40B active) | 198K | Reasoning, coding |
-| `gpt-oss:20b-cloud` | 20B | 128K | Thinking levels |
-| `gpt-oss:120b-cloud` | 120B | 128K | Thinking levels |
-| `kimi-k2:1t-cloud` | 1T (32B active) | 256K | Agentic coding |
-| `kimi-k2-thinking:cloud` | - | 256K | Reasoning, agentic |
-| `kimi-k2.5:cloud` | - | 256K | Multimodal, thinking |
-| `minimax-m2:cloud` | 230B (10B active) | 200K | Coding, agentic |
-| `minimax-m2.1:cloud` | 10B active | 200K | Multilingual coding |
-| `minimax-m2.5:cloud` | - | 198K | Coding, thinking, tools |
-| `ministral-3:3b-cloud` | 3B | 256K | Edge, vision |
-| `ministral-3:8b-cloud` | 8B | 256K | Edge, vision |
-| `ministral-3:14b-cloud` | 14B | 256K | Edge, vision |
-| `nemotron-3-nano:30b-cloud` | 30B (3.5B active) | 1M | Reasoning |
-| `qwen3-coder:480b-cloud` | 480B | 256K | Code generation |
-| `qwen3-coder-next:cloud` | 80B (3B active) | 256K | Agentic coding |
-| `qwen3-next:80b-cloud` | 80B | 256K | General purpose |
-| `qwen3-vl:235b-cloud` | 235B | 256K | Vision-language |
-| `rnj-1:8b-cloud` | 8B | 32K | Code, STEM |
-
-See https://ollama.com/search?c=cloud for the latest list.
+Browse the [Ollama Cloud model catalog](https://ollama.com/search?c=cloud)
+for current tags, model capabilities, and availability.
 
 ### Cloud Models with Streaming
 
@@ -226,8 +200,7 @@ For a locally signed-in Ollama server, use `web_search_experimental/2` and
 |---------|--------------|--------------|------------|
 | Server | Your machine | Your machine | ollama.com |
 | Models | Downloaded | Streamed | Remote |
-| API Key | Optional | Required (signin) | Required |
-| Latency | Lowest | Medium | Highest |
+| Authentication | Depends on deployment | Local server sign-in | Bearer token |
 | Model Size | Limited by hardware | Very large | Very large |
 
 ## Error Handling
@@ -239,8 +212,12 @@ case Ollixir.web_search(client, query: "test") do
   {:ok, response} ->
     response
 
+  {:error, %Ollixir.RequestError{reason: reason}}
+  when reason in [:missing_api_key, :invalid_api_key] ->
+    IO.puts("Configure a bearer token with OLLAMA_API_KEY or api_key.")
+
   {:error, %Ollixir.ResponseError{status: 401}} ->
-    IO.puts("Missing or invalid API key. Set OLLAMA_API_KEY.")
+    IO.puts("The hosted API rejected the bearer token.")
 
   {:error, %Ollixir.ResponseError{status: 403}} ->
     IO.puts("API key lacks permission for this operation.")
@@ -291,7 +268,7 @@ Cloud tests are tagged and excluded by default:
 
 ```bash
 # Run cloud tests after setting API key
-mix test --include cloud_api
+mix test test/ollixir/web_cloud_test.exs --include cloud_api
 ```
 
 ## See Also

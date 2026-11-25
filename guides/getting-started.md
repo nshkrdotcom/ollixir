@@ -32,12 +32,16 @@ This guide walks you through your first steps with the Ollixir Elixir client.
 
 ## Add to Your Project
 
+Ollixir requires Elixir 1.15 or newer.
+
 ```elixir
 # mix.exs
 def deps do
   [{:ollixir, "~> 0.2.0"}]
 end
 ```
+
+Run `mix deps.get` from your project root.
 
 ## Your First Chat
 

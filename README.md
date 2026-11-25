@@ -45,7 +45,7 @@ For examples, also pull:
 Or pull everything at once:
 
 ```bash
-./examples/install_models.sh
+bash examples/install_models.sh
 ```
 
 Thinking examples use `deepseek-r1:1.5b`, which supports `think`.
@@ -75,12 +75,13 @@ remote model metadata. Model operations accept `model:` as well as legacy
 `name:`. For manifest lists, use `Ollixir.show_manifests/2`.
 
 ```elixir
+# First run: ollama pull nimble
 client = Ollixir.init()
 {:ok, version} = Ollixir.version(client)
 {:ok, status} = Ollixir.status(client)
 
 {:ok, response} = Ollixir.system_one(client,
-  model: "your-decision-model",
+  model: "nimble",
   state: "The parcel arrived yesterday.",
   questions: [{"delivered", %{type: "noul", instructions: "Was it delivered?"}}]
 )
@@ -202,6 +203,9 @@ end)
 
 ### Process mode
 
+Use this pattern in a short-lived script to read the final response. For a
+long-lived receiver that handles every chunk, see the [streaming guide](guides/streaming.md).
+
 ```elixir
 {:ok, task} = Ollixir.chat(client,
   model: "llama3.2",
@@ -209,11 +213,12 @@ end)
   stream: self()
 )
 
-receive do
-  {_pid, {:data, chunk}} -> IO.inspect(chunk)
+# Handle each {task.pid, {:data, chunk}} message in the receiver.
+# Task.await/2 returns the aggregated native response.
+case Task.await(task, 120_000) do
+  {:ok, final} -> IO.puts(final["message"]["content"])
+  {:error, error} -> IO.puts(Exception.message(error))
 end
-
-Task.await(task, 60_000)
 ```
 
 ## Multimodal images
@@ -351,36 +356,8 @@ end)
 |> Stream.run()
 ```
 
-Cloud models available include:
-
-**Coding & Agentic:**
-- `minimax-m2.5:cloud` — Coding, tools, thinking
-- `deepseek-v3.1:671b-cloud` — 671B, thinking, tools
-- `deepseek-v3.2:cloud` — Reasoning, agentic
-- `devstral-2:123b-cloud` — 123B, agentic coding
-- `devstral-small-2:24b-cloud` — 24B, agentic coding
-- `qwen3-coder:480b-cloud` — 480B, code generation
-- `qwen3-coder-next:cloud` — 80B (3B active), agentic coding
-
-**General Purpose & Reasoning:**
-- `glm-5:cloud` — 744B (40B active), reasoning
-- `gemini-3-flash-preview:cloud` — 1M context, vision, thinking
-- `cogito-2.1:671b-cloud` — 671B, MIT license
-- `gpt-oss:20b-cloud` / `gpt-oss:120b-cloud` — Thinking levels
-- `qwen3-next:80b-cloud` — 80B, efficient inference
-- `nemotron-3-nano:30b-cloud` — 30B (3.5B active), 1M context
-
-**Multimodal & Specialized:**
-- `kimi-k2.5:cloud` — Vision + language, thinking
-- `kimi-k2:1t-cloud` — 1T (32B active), agentic
-- `kimi-k2-thinking:cloud` — Reasoning, agentic
-- `qwen3-vl:235b-cloud` — 235B, vision-language
-- `ministral-3:3b/8b/14b-cloud` — Edge, vision
-- `glm-4.6:cloud` / `glm-4.7:cloud` — Coding, agentic
-- `minimax-m2:cloud` / `minimax-m2.1:cloud` — Coding
-- `rnj-1:8b-cloud` — 8B, code & STEM
-
-See https://ollama.com/search?c=cloud for the latest list.
+Browse the [Ollama Cloud model catalog](https://ollama.com/search?c=cloud)
+for available tags and supported features.
 
 ### Call the hosted API (ollama.com)
 
@@ -395,7 +372,7 @@ export OLLAMA_API_KEY="your_api_key_here"
 3) (Optional) List models:
 
 ```bash
-curl https://ollama.com/api/tags
+curl -H "Authorization: Bearer $OLLAMA_API_KEY" https://ollama.com/api/tags
 ```
 
 4) Point the client at the hosted API:
@@ -435,11 +412,13 @@ client = Ollixir.init(req)
 Environment variables:
 
 - `OLLAMA_HOST` sets the default host (e.g. `http://localhost:11434`)
-- `OLLAMA_API_KEY` provides a bearer token for the hosted API
+- `OLLAMA_API_KEY` supplies the default bearer token when initializing a client.
+  Pass `api_key: nil` for a local client that should omit the environment token.
 
 ## Error handling
 
-All functions return `{:ok, result}` or `{:error, reason}`:
+Buffered API requests return `{:ok, result}` or `{:error, reason}`. Lazy stream
+errors are raised during enumeration. See the [streaming guide](guides/streaming.md).
 
 ```elixir
 case Ollixir.chat(client, model: "not-found", messages: [%{role: "user", content: "Hi"}]) do
@@ -479,6 +458,19 @@ Ollixir.embeddings(client, model: "llama3.2", prompt: "Legacy embeddings")
 Ollixir.web_search(client, query: "Elixir language")
 Ollixir.web_fetch(client, url: "https://elixir-lang.org")
 ```
+
+## Testing the repository
+
+From the repository root:
+
+```sh
+mix deps.get
+mix test
+```
+
+The default suite starts a mock HTTP server on port 4000. It can run without
+an Ollama server or API key. For real model and service checks, follow the
+[live validation guide](guides/live-validation.md).
 
 ## Examples and Guides
 

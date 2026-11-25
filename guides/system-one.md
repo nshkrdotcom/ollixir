@@ -2,14 +2,14 @@
 
 `Ollixir.system_one/2` calls Ollama's non-streaming `POST /v1/systemone`
 endpoint. It evaluates a state using a compatible decision model and a set of
-named questions. It is not the same as native chat or JSON-schema generation.
-Availability depends on the server, runner, and installed model.
+named questions. Availability depends on the server, runner, and installed model.
 
 ```elixir
+# First run: ollama pull nimble
 client = Ollixir.init()
 
 {:ok, result} = Ollixir.system_one(client,
-  model: "your-decision-model",
+  model: "nimble",
   state: "A customer reported a broken handle.",
   questions: [
     {"damaged", %{type: "noul", instructions: "Is the product damaged?"}},
@@ -24,11 +24,11 @@ client = Ollixir.init()
 IO.inspect(result["answers"])
 ```
 
-The state and instructions may be JSON values; individual runners impose their own restrictions. A list of
+Include the `state` key in every request. State and instructions can be JSON
+values, subject to the runner’s restrictions. A list of
 `{name, question}` pairs encodes as a JSON object in the supplied order. A map
 is convenient if question order does not matter. Do not duplicate names.
-Some decision models accept `state: nil` and supply default instructions when
-the question omits them.
+Some runners accept `state: nil` or provide default question instructions.
 Question types include `"noul"` (numeric probability), `"choice"` (categorical),
 and `"score"` (ordered scoring criteria). For score questions, pass a list such
 as `["low", "medium", "high"]`. Most runners accept 2–10 levels, and some

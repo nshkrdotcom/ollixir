@@ -129,7 +129,7 @@ export OLLAMA_API_KEY="your_api_key_here"
 3) (Optional) List models:
 
 ```bash
-curl https://ollama.com/api/tags
+curl -H "Authorization: Bearer $OLLAMA_API_KEY" https://ollama.com/api/tags
 ```
 
 4) Point the client at the hosted API:
@@ -145,7 +145,7 @@ client = Ollixir.init("https://ollama.com")
 
 ### Web search/fetch (requires API key)
 
-`web_search/2` and `web_fetch/2` always call the hosted API and require
+`web_search/2` and `web_fetch/2` use the hosted API by default and require
 `OLLAMA_API_KEY`. If the key is missing, these examples will skip; if the key
 is invalid, the API will return 401/403.
 
@@ -161,7 +161,7 @@ Cloud tests are tagged and excluded by default. After setting
 `OLLAMA_API_KEY`, you can run:
 
 ```bash
-mix test --include cloud_api
+mix test test/ollixir/web_cloud_test.exs --include cloud_api
 ```
 
 ## Troubleshooting

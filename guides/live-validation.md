@@ -15,14 +15,13 @@ examples/live/live.sh doctor
 ```
 
 This shows the GPU, free VRAM and disk, and server versions on ports 11434 and
-41434. The maintainer's machine reports an RTX 5060 Ti with 16,311 MiB of VRAM.
-An existing server on **11434** can stay up. The release workflow uses **41434**
+41434. An existing server on **11434** can stay up. The release workflow uses **41434**
 and stores the server bundle, model files, account key files, and results under
 `tmp/ollixir-live/`. Keep that directory private if you sign in.
 
 You need Elixir/Mix and standard Linux userland utilities, including `curl`,
 GNU tar, `zstd`, and `sha256sum`. An NVIDIA driver must expose the GPU to the
-server. Plan for about **30 GB of free disk** for the extracted bundle, model
+server. Allow **at least 35 GB of free disk** for the extracted bundle, model
 fixtures and temporary files. Check free VRAM before inference. The workflow
 loads one model at a time with a 4K default context and one parallel request.
 GPU offload still depends on the runner, quantization, and free VRAM. Use
@@ -154,7 +153,8 @@ Run the affected checks again after code or fixture changes. For sign-off:
    the registry pull and any applicable HF, cloud, or authorized push results.
 2. Push the chosen release commit and verify that all GitHub CI matrix jobs
    pass for that SHA.
-3. In a clean checkout of the same SHA, build and inspect the artifacts:
+3. From the repository root, confirm the working tree is clean and HEAD
+   matches the SHA verified by CI. Build and inspect the artifacts:
 
    ```sh
    mix deps.get
@@ -170,8 +170,8 @@ Run the affected checks again after code or fixture changes. For sign-off:
    ```
 
 4. Confirm the version is available on Hex and there is no existing local or
-   remote `v0.2.0` tag. Publish manually with `mix hex.publish` from that same
-   checkout. Tag the exact release commit after confirming publication.
+   remote `v0.2.0` tag. Publish manually with `mix hex.publish` from the
+   repository root. Tag the exact release commit after confirming publication.
 
 The package digest applies to the exact artifact you inspected. Rebuild it
 after any change to package contents.

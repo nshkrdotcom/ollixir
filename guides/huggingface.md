@@ -1,6 +1,7 @@
 # HuggingFace Integration
 
-Run any of the 45,000+ GGUF models on HuggingFace Hub directly through Ollama.
+Run compatible GGUF models from Hugging Face through Ollama. The server and
+runner determine which architectures and quantizations work.
 The `Ollixir.HuggingFace` module provides discovery, selection, and convenience
 functions for working with HuggingFace models.
 
@@ -41,7 +42,7 @@ format. This module adds:
 | Feature | Function | Description |
 |---------|----------|-------------|
 | Discovery | `list_gguf_files/2` | Find available GGUF files and quantizations |
-| Selection | `auto_select/2` | Auto-pick best quantization for your hardware |
+| Selection | `auto_select/2` | Select a quantization using size and preference options |
 | Convenience | `chat/4`, `pull/3` | Wrappers that build correct model references |
 | Metadata | `model_info/2` | Get downloads, tags, and other model info |
 
