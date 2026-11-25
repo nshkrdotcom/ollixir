@@ -1,193 +1,161 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
   <defs>
-    <!-- Main gradient - Elixir purple to deep indigo -->
-    <linearGradient id="hexGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1a0a2e;stop-opacity:1" />
-      <stop offset="50%" style="stop-color:#2d1b4e;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#4a1f7a;stop-opacity:1" />
-    </linearGradient>
-
-    <!-- Inner ambient glow -->
-    <radialGradient id="innerGlow" cx="50%" cy="50%" r="60%" fx="50%" fy="40%">
-      <stop offset="0%" style="stop-color:#9c4dcc;stop-opacity:0.25" />
-      <stop offset="60%" style="stop-color:#6a1b9a;stop-opacity:0.1" />
-      <stop offset="100%" style="stop-color:#1a0a2e;stop-opacity:0" />
-    </radialGradient>
-
-    <!-- Ollama icon gradient - soft white with purple tint -->
-    <linearGradient id="ollamaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
-      <stop offset="40%" style="stop-color:#f3e5f5;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#e1bee7;stop-opacity:1" />
-    </linearGradient>
-
-    <!-- Electric accent for connections -->
-    <linearGradient id="electricGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#00e5ff;stop-opacity:0.9" />
-      <stop offset="50%" style="stop-color:#b388ff;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#00e5ff;stop-opacity:0.9" />
-    </linearGradient>
-
-    <!-- Node glow gradient -->
-    <radialGradient id="nodeGradient" cx="50%" cy="30%" r="70%">
-      <stop offset="0%" style="stop-color:#ea80fc;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#aa00ff;stop-opacity:1" />
-    </radialGradient>
-
-    <!-- Subtle outer glow filter -->
-    <filter id="outerGlow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="blur" />
-      <feFlood flood-color="#7c4dff" flood-opacity="0.5" result="color" />
-      <feComposite in="color" in2="blur" operator="in" result="shadow" />
-      <feMerge>
-        <feMergeNode in="shadow" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
-    </filter>
-
-    <!-- Soft drop shadow for Ollama icon -->
-    <filter id="iconShadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#1a0a2e" flood-opacity="0.4" />
-    </filter>
-
-    <!-- Glow for neural connections -->
-    <filter id="lineGlow" x="-100%" y="-100%" width="300%" height="300%">
-      <feGaussianBlur stdDeviation="2" result="blur" />
-      <feMerge>
-        <feMergeNode in="blur" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
-    </filter>
-
-    <!-- Inner icon glow -->
-    <filter id="iconGlow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur" />
-      <feFlood flood-color="#ffffff" flood-opacity="0.3" result="color" />
-      <feComposite in="color" in2="blur" operator="in" result="glow" />
-      <feMerge>
-        <feMergeNode in="glow" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
-    </filter>
-
-    <!-- Hexagon clip path -->
-    <clipPath id="hexClip">
-      <polygon points="100,8 178,54 178,146 100,192 22,146 22,54" />
+    
+    <clipPath id="hex-clip">
+      <polygon points="100,4 183.14,52 183.14,148 100,196 16.86,148 16.86,52" />
     </clipPath>
 
-    <!-- Subtle circuit pattern -->
-    <pattern id="circuitPattern" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-      <rect width="24" height="24" fill="none" />
-      <circle cx="12" cy="12" r="0.8" fill="#b388ff" opacity="0.15" />
-      <line x1="12" y1="0" x2="12" y2="24" stroke="#7c4dff" stroke-width="0.2" opacity="0.08" />
-      <line x1="0" y1="12" x2="24" y2="12" stroke="#7c4dff" stroke-width="0.2" opacity="0.08" />
-    </pattern>
+    
+    <linearGradient id="bg-base" x1="15%" y1="5%" x2="85%" y2="95%">
+      <stop offset="0%" stop-color="#29243B" />
+      <stop offset="52%" stop-color="#1E1D2B" />
+      <stop offset="100%" stop-color="#14161F" />
+    </linearGradient>
 
-    <!-- Animated pulse gradient -->
-    <radialGradient id="pulseGradient" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" style="stop-color:#b388ff;stop-opacity:0" />
-      <stop offset="70%" style="stop-color:#7c4dff;stop-opacity:0.05" />
-      <stop offset="100%" style="stop-color:#4a148c;stop-opacity:0.1" />
+    
+    <radialGradient id="llama-aura" cx="50%" cy="52%" r="44%">
+      <stop offset="0%" stop-color="#6E588A" stop-opacity="0.34" />
+      <stop offset="55%" stop-color="#3E5363" stop-opacity="0.16" />
+      <stop offset="100%" stop-color="#14161F" stop-opacity="0" />
     </radialGradient>
+
+    
+    <linearGradient id="facet-left" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#53466B" stop-opacity="0.22" />
+      <stop offset="100%" stop-color="#1C1B29" stop-opacity="0.05" />
+    </linearGradient>
+
+    <linearGradient id="facet-right" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3A5263" stop-opacity="0.22" />
+      <stop offset="100%" stop-color="#161922" stop-opacity="0.05" />
+    </linearGradient>
+
+    
+    <linearGradient id="outer-rim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#B8C4D4" />
+      <stop offset="35%" stop-color="#7B8799" />
+      <stop offset="70%" stop-color="#525D6E" />
+      <stop offset="100%" stop-color="#98A6B8" />
+    </linearGradient>
+
+    
+    <linearGradient id="inner-bevel" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#9E87B8" stop-opacity="0.55" />
+      <stop offset="50%" stop-color="#5C7687" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#8A76A3" stop-opacity="0.5" />
+    </linearGradient>
+
+    
+    <linearGradient id="elixir-drop" x1="25%" y1="10%" x2="80%" y2="95%">
+      <stop offset="0%" stop-color="#A589C2" />
+      <stop offset="50%" stop-color="#72588F" />
+      <stop offset="100%" stop-color="#48365E" />
+    </linearGradient>
+
+    
+    <linearGradient id="vessel-arc" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#567282" stop-opacity="0.15" />
+      <stop offset="50%" stop-color="#9480AD" stop-opacity="0.65" />
+      <stop offset="100%" stop-color="#567282" stop-opacity="0.15" />
+    </linearGradient>
+
+    
+    <linearGradient id="llama-platinum" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F8FAFC" />
+      <stop offset="55%" stop-color="#E2E8F0" />
+      <stop offset="100%" stop-color="#BAC5D4" />
+    </linearGradient>
+
+    
+    <filter id="silhouette-shadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="2.5" stdDeviation="3" flood-color="#0B0C12" flood-opacity="0.7" />
+    </filter>
   </defs>
 
-  <!-- Background hexagon with gradient -->
-  <polygon
-    points="100,8 178,54 178,146 100,192 22,146 22,54"
-    fill="url(#hexGradient)"
-    filter="url(#outerGlow)"
-  />
+  
+  <g clip-path="url(#hex-clip)">
+    
+    <polygon points="100,4 183.14,52 183.14,148 100,196 16.86,148 16.86,52" fill="url(#bg-base)" />
+    <polygon points="100,4 183.14,52 183.14,148 100,196 16.86,148 16.86,52" fill="url(#llama-aura)" />
 
-  <!-- Circuit pattern overlay -->
-  <polygon
-    points="100,12 174,56 174,144 100,188 26,144 26,56"
-    fill="url(#circuitPattern)"
-    opacity="0.6"
-  />
+    
+    <polygon points="100,4 16.86,52 100,100" fill="url(#facet-left)" />
+    <polygon points="100,4 183.14,52 100,100" fill="url(#facet-right)" />
+    <polygon points="16.86,148 100,196 100,100" fill="url(#facet-right)" opacity="0.75" />
+    <polygon points="183.14,148 100,196 100,100" fill="url(#facet-left)" opacity="0.75" />
 
-  <!-- Inner glow layer -->
-  <polygon
-    points="100,12 174,56 174,144 100,188 26,144 26,56"
-    fill="url(#innerGlow)"
-  />
+    
+    <g stroke="#94A3B8" stroke-width="0.6" stroke-opacity="0.14">
+      <line x1="100" y1="4" x2="100" y2="196" />
+      <line x1="16.86" y1="52" x2="183.14" y2="148" />
+      <line x1="183.14" y1="52" x2="16.86" y2="148" />
+    </g>
 
-  <!-- Pulse rings -->
-  <circle cx="100" cy="100" r="55" fill="none" stroke="#b388ff" stroke-width="0.4" opacity="0.15" />
-  <circle cx="100" cy="100" r="70" fill="none" stroke="#7c4dff" stroke-width="0.3" opacity="0.1" />
+    
+    <g fill="none">
+      <circle cx="100" cy="30" r="24" stroke="#9E87B8" stroke-width="0.75" stroke-opacity="0.28" />
+      <circle cx="100" cy="30" r="40" stroke="#85749E" stroke-width="0.7" stroke-dasharray="3 3" stroke-opacity="0.24" />
+      <circle cx="100" cy="30" r="58" stroke="#627D8F" stroke-width="0.65" stroke-opacity="0.2" />
+    </g>
 
-  <!-- Neural network connections (background layer) -->
-  <g filter="url(#lineGlow)" opacity="0.5">
-    <!-- Outer diagonal connections -->
-    <line x1="55" y1="52" x2="85" y2="72" stroke="url(#electricGradient)" stroke-width="1" />
-    <line x1="145" y1="52" x2="115" y2="72" stroke="url(#electricGradient)" stroke-width="1" />
-    <line x1="55" y1="148" x2="85" y2="128" stroke="url(#electricGradient)" stroke-width="1" />
-    <line x1="145" y1="148" x2="115" y2="128" stroke="url(#electricGradient)" stroke-width="1" />
-    <!-- Side connections -->
-    <line x1="38" y1="100" x2="62" y2="100" stroke="url(#electricGradient)" stroke-width="1" />
-    <line x1="162" y1="100" x2="138" y2="100" stroke="url(#electricGradient)" stroke-width="1" />
-    <!-- Subtle cross connections -->
-    <line x1="65" y1="65" x2="135" y2="135" stroke="#00e5ff" stroke-width="0.4" opacity="0.25" />
-    <line x1="135" y1="65" x2="65" y2="135" stroke="#00e5ff" stroke-width="0.4" opacity="0.25" />
+    
+    <g fill="none">
+      
+      <path d="M 42,102 C 42,64 68,36 100,20 C 132,36 158,64 158,102" stroke="url(#vessel-arc)" stroke-width="1.1" />
+      
+      <path d="M 38,118 C 44,152 70,172 100,176 C 130,172 156,152 162,118" stroke="url(#vessel-arc)" stroke-width="1.35" stroke-linecap="round" />
+      <path d="M 52,134 C 62,155 80,166 100,168 C 120,166 138,155 148,134" stroke="#6B8596" stroke-width="0.75" stroke-opacity="0.32" stroke-linecap="round" />
+    </g>
+
+    
+    <g fill="#A589C2">
+      <circle cx="54" cy="116" r="1.6" fill-opacity="0.45" />
+      <circle cx="49" cy="96" r="1.1" fill-opacity="0.35" />
+      <circle cx="58" cy="76" r="1.4" fill="#7898AB" fill-opacity="0.4" />
+
+      <circle cx="146" cy="116" r="1.6" fill-opacity="0.45" />
+      <circle cx="151" cy="96" r="1.1" fill-opacity="0.35" />
+      <circle cx="142" cy="76" r="1.4" fill="#7898AB" fill-opacity="0.4" />
+    </g>
+
+    
+    <polygon points="100,11 177.08,55.5 177.08,144.5 100,189 22.92,144.5 22.92,55.5" fill="none" stroke="url(#inner-bevel)" stroke-width="1.1" />
+
+    
+    <line x1="100" y1="4" x2="100" y2="15" stroke="#B8C4D4" stroke-width="1.5" stroke-opacity="0.75" />
+    <line x1="100" y1="185" x2="100" y2="196" stroke="#B8C4D4" stroke-width="1.5" stroke-opacity="0.75" />
+
+    
+    <g transform="translate(100, 30)" filter="url(#silhouette-shadow)">
+      <path d="M 0,-10.5 C 4.2,-3.8 7.5,0.9 7.5,5.1 C 7.5,9.3 4.2,12.4 0,12.4 C -4.2,12.4 -7.5,9.3 -7.5,5.1 C -7.5,0.9 -4.2,-3.8 0,-10.5 Z" fill="url(#elixir-drop)" stroke="#C4B5D6" stroke-width="0.9" />
+      
+      <path d="M -2.7,1.4 C -3.1,4.0 -2.3,6.8 -0.4,8.2" fill="none" stroke="#F1F5F9" stroke-width="1.0" stroke-linecap="round" stroke-opacity="0.6" />
+    </g>
+
+    
+    <g filter="url(#silhouette-shadow)">
+      
+      <path d="M 76.5,76.5 C 71.0,58.5 76.5,51.6 82.0,53.0 C 86.2,54.4 88.2,62.7 88.9,67.5 C 95.6,64.3 104.4,64.3 111.1,67.5 C 111.8,62.7 113.8,54.4 118.0,53.0 C 123.5,51.6 129.0,58.5 123.5,76.5 C 131.8,80.6 135.2,90.3 133.8,100.0 C 132.9,104.8 130.7,107.6 129.7,109.7 C 134.3,115.9 135.2,125.6 131.8,133.9 C 130.4,137.3 132.0,142.8 132.5,148.4 L 67.5,148.4 C 68.0,142.8 69.6,137.3 68.2,133.9 C 64.8,125.6 65.7,115.9 70.3,109.7 C 69.3,107.6 67.1,104.8 66.2,100.0 C 64.8,90.3 68.2,80.6 76.5,76.5 Z" fill="#171622" fill-opacity="0.88" />
+
+      
+      <path d="M 67.5,148.4 C 67.1,142.2 69.3,137.3 68.0,133.2 C 64.5,124.6 65.7,115.5 70.4,109.4 C 68.9,107.2 67.0,104.4 66.2,99.7 C 64.5,90.0 68.5,80.4 76.8,76.5 C 71.8,60.6 76.2,52.3 81.8,53.3 C 86.3,54.1 88.1,62.0 88.9,67.5 C 95.6,64.2 104.4,64.2 111.1,67.5 C 111.9,62.0 113.7,54.1 118.2,53.3 C 123.8,52.3 128.2,60.6 123.2,76.5 C 131.5,80.4 135.5,90.0 133.8,99.7 C 133.0,104.4 131.1,107.2 129.6,109.4 C 134.3,115.5 135.5,124.6 132.0,133.2 C 130.7,137.3 132.9,142.2 132.5,148.4" fill="none" stroke="url(#llama-platinum)" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round" />
+
+      
+      <path d="M 79.5,72.2 C 78.1,65.6 79.8,61.5 82.3,61.9 C 84.2,62.3 85.1,66.0 85.5,70.2" fill="none" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-opacity="0.5" />
+      <path d="M 120.5,72.2 C 121.9,65.6 120.2,61.5 117.7,61.9 C 115.8,62.3 114.9,66.0 114.5,70.2" fill="none" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-opacity="0.5" />
+
+      
+      <circle cx="80.9" cy="96.5" r="3.4" fill="#F1F5F9" />
+      <circle cx="119.1" cy="96.5" r="3.4" fill="#F1F5F9" />
+
+      
+      <ellipse cx="100" cy="107.6" rx="14.9" ry="10.5" fill="#211F30" stroke="#E2E8F0" stroke-width="3.2" />
+
+      
+      <path d="M 97.4,105.2 L 100,108.0 L 102.6,105.2 M 100,108.0 L 100,111.8" fill="none" stroke="#E2E8F0" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" />
+    </g>
   </g>
 
-  <!-- Ollama Icon - centered and scaled -->
-  <g transform="translate(100, 100) scale(3.2) translate(-12, -12)" filter="url(#iconShadow)">
-    <path
-      d="M7.905 1.09c.216.085.411.225.588.41.295.306.544.744.734 1.263.191.522.315 1.1.362 1.68a5.054 5.054 0 012.049-.636l.051-.004c.87-.07 1.73.087 2.48.474.101.053.2.11.297.17.05-.569.172-1.134.36-1.644.19-.52.439-.957.733-1.264a1.67 1.67 0 01.589-.41c.257-.1.53-.118.796-.042.401.114.745.368 1.016.737.248.337.434.769.561 1.287.23.934.27 2.163.115 3.645l.053.04.026.019c.757.576 1.284 1.397 1.563 2.35.435 1.487.216 3.155-.534 4.088l-.018.021.002.003c.417.762.67 1.567.724 2.4l.002.03c.064 1.065-.2 2.137-.814 3.19l-.007.01.01.024c.472 1.157.62 2.322.438 3.486l-.006.039a.651.651 0 01-.747.536.648.648 0 01-.54-.742c.167-1.033.01-2.069-.48-3.123a.643.643 0 01.04-.617l.004-.006c.604-.924.854-1.83.8-2.72-.046-.779-.325-1.544-.8-2.273a.644.644 0 01.18-.886l.009-.006c.243-.159.467-.565.58-1.12a4.229 4.229 0 00-.095-1.974c-.205-.7-.58-1.284-1.105-1.683-.595-.454-1.383-.673-2.38-.61a.653.653 0 01-.632-.371c-.314-.665-.772-1.141-1.343-1.436a3.288 3.288 0 00-1.772-.332c-1.245.099-2.343.801-2.67 1.686a.652.652 0 01-.61.425c-1.067.002-1.893.252-2.497.703-.522.39-.878.935-1.066 1.588a4.07 4.07 0 00-.068 1.886c.112.558.331 1.02.582 1.269l.008.007c.212.207.257.53.109.785-.36.622-.629 1.549-.673 2.44-.05 1.018.186 1.902.719 2.536l.016.019a.643.643 0 01.095.69c-.576 1.236-.753 2.252-.562 3.052a.652.652 0 01-1.269.298c-.243-1.018-.078-2.184.473-3.498l.014-.035-.008-.012a4.339 4.339 0 01-.598-1.309l-.005-.019a5.764 5.764 0 01-.177-1.785c.044-.91.278-1.842.622-2.59l.012-.026-.002-.002c-.293-.418-.51-.953-.63-1.545l-.005-.024a5.352 5.352 0 01.093-2.49c.262-.915.777-1.701 1.536-2.269.06-.045.123-.09.186-.132-.159-1.493-.119-2.73.112-3.67.127-.518.314-.95.562-1.287.27-.368.614-.622 1.015-.737.266-.076.54-.059.797.042zm4.116 9.09c.936 0 1.8.313 2.446.855.63.527 1.005 1.235 1.005 1.94 0 .888-.406 1.58-1.133 2.022-.62.375-1.451.557-2.403.557-1.009 0-1.871-.259-2.493-.734-.617-.47-.963-1.13-.963-1.845 0-.707.398-1.417 1.056-1.946.668-.537 1.55-.849 2.485-.849zm0 .896a3.07 3.07 0 00-1.916.65c-.461.37-.722.835-.722 1.25 0 .428.21.829.61 1.134.455.347 1.124.548 1.943.548.799 0 1.473-.147 1.932-.426.463-.28.7-.686.7-1.257 0-.423-.246-.89-.683-1.256-.484-.405-1.14-.643-1.864-.643zm.662 1.21l.004.004c.12.151.095.37-.056.49l-.292.23v.446a.375.375 0 01-.376.373.375.375 0 01-.376-.373v-.46l-.271-.218a.347.347 0 01-.052-.49.353.353 0 01.494-.051l.215.172.22-.174a.353.353 0 01.49.051zm-5.04-1.919c.478 0 .867.39.867.871a.87.87 0 01-.868.871.87.87 0 01-.867-.87.87.87 0 01.867-.872zm8.706 0c.48 0 .868.39.868.871a.87.87 0 01-.868.871.87.87 0 01-.867-.87.87.87 0 01.867-.872zM7.44 2.3l-.003.002a.659.659 0 00-.285.238l-.005.006c-.138.189-.258.467-.348.832-.17.692-.216 1.631-.124 2.782.43-.128.899-.208 1.404-.237l.01-.001.019-.034c.046-.082.095-.161.148-.239.123-.771.022-1.692-.253-2.444-.134-.364-.297-.65-.453-.813a.628.628 0 00-.107-.09L7.44 2.3zm9.174.04l-.002.001a.628.628 0 00-.107.09c-.156.163-.32.45-.453.814-.29.794-.387 1.776-.23 2.572l.058.097.008.014h.03a5.184 5.184 0 011.466.212c.086-1.124.038-2.043-.128-2.722-.09-.365-.21-.643-.349-.832l-.004-.006a.659.659 0 00-.285-.239h-.004z"
-      fill="url(#ollamaGradient)"
-      filter="url(#iconGlow)"
-    />
-  </g>
-
-  <!-- Neural network nodes -->
-  <g>
-    <!-- Corner nodes -->
-    <circle cx="55" cy="52" r="3" fill="url(#nodeGradient)" filter="url(#lineGlow)" />
-    <circle cx="145" cy="52" r="3" fill="url(#nodeGradient)" filter="url(#lineGlow)" />
-    <circle cx="55" cy="148" r="3" fill="url(#nodeGradient)" filter="url(#lineGlow)" />
-    <circle cx="145" cy="148" r="3" fill="url(#nodeGradient)" filter="url(#lineGlow)" />
-    <!-- Side nodes -->
-    <circle cx="38" cy="100" r="2.5" fill="url(#nodeGradient)" filter="url(#lineGlow)" />
-    <circle cx="162" cy="100" r="2.5" fill="url(#nodeGradient)" filter="url(#lineGlow)" />
-    <!-- Inner connection nodes -->
-    <circle cx="85" cy="72" r="2" fill="url(#nodeGradient)" filter="url(#lineGlow)" opacity="0.8" />
-    <circle cx="115" cy="72" r="2" fill="url(#nodeGradient)" filter="url(#lineGlow)" opacity="0.8" />
-    <circle cx="85" cy="128" r="2" fill="url(#nodeGradient)" filter="url(#lineGlow)" opacity="0.8" />
-    <circle cx="115" cy="128" r="2" fill="url(#nodeGradient)" filter="url(#lineGlow)" opacity="0.8" />
-    <circle cx="62" cy="100" r="2" fill="url(#nodeGradient)" filter="url(#lineGlow)" opacity="0.8" />
-    <circle cx="138" cy="100" r="2" fill="url(#nodeGradient)" filter="url(#lineGlow)" opacity="0.8" />
-  </g>
-
-  <!-- Hexagon border -->
-  <polygon
-    points="100,8 178,54 178,146 100,192 22,146 22,54"
-    fill="none"
-    stroke="url(#electricGradient)"
-    stroke-width="2"
-    stroke-linejoin="round"
-  />
-
-  <!-- Inner hexagon accent -->
-  <polygon
-    points="100,18 168,58 168,142 100,182 32,142 32,58"
-    fill="none"
-    stroke="#b388ff"
-    stroke-width="0.5"
-    opacity="0.25"
-  />
-
-  <!-- Top and bottom accent lines -->
-  <g stroke="#00e5ff" stroke-width="1.5" stroke-linecap="round" opacity="0.5">
-    <line x1="100" y1="10" x2="100" y2="18" />
-    <line x1="100" y1="182" x2="100" y2="190" />
-  </g>
-
-  <!-- Elixir drop accent at top -->
-  <g opacity="0.35">
-    <path
-      d="M100,28 C100,28 96,34 96,37 C96,39.5 97.8,41 100,41 C102.2,41 104,39.5 104,37 C104,34 100,28 100,28 Z"
-      fill="#00e5ff"
-      filter="url(#lineGlow)"
-    />
-  </g>
+  
+  <polygon points="100,4 183.14,52 183.14,148 100,196 16.86,148 16.86,52" fill="none" stroke="url(#outer-rim)" stroke-width="2.4" stroke-linejoin="round" />
 </svg>
