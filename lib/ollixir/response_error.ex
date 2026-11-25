@@ -82,7 +82,8 @@ defmodule Ollixir.ResponseError do
   def retryable?(_), do: false
 
   defp extract_error(body) when is_map(body) do
-    case body["error"] || body[:error] || body["message"] || body[:message] do
+    case body["error"] || body[:error] || body["message"] || body[:message] ||
+           response_error(body) do
       error when is_binary(error) ->
         error
 
@@ -108,6 +109,11 @@ defmodule Ollixir.ResponseError do
   end
 
   defp extract_error(_), do: nil
+
+  defp response_error(%{"type" => "response.failed", "response" => %{"error" => error}}),
+    do: error
+
+  defp response_error(_), do: nil
 
   defp status_message(status) do
     Plug.Conn.Status.reason_phrase(status)

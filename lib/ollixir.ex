@@ -1805,7 +1805,7 @@ defmodule Ollixir do
     runner: [type: :string, doc: "Runner variant."],
     state: [type: :any, required: true, doc: "String, JSON object, or array to evaluate."],
     images: [type: {:list, :string}, doc: "Optional images for a compatible model."],
-    videos: [type: {:list, :any}, doc: "Reserved; video support is model/server dependent."],
+    videos: [type: {:list, :any}, doc: "Reserved; only an empty list is accepted."],
     questions: [type: :any, required: true, doc: "Named questions (map or ordered pairs)."],
     keep_alive: [type: {:or, [:integer, :string]}, doc: "Model keep-alive duration."]
   )
@@ -2043,14 +2043,29 @@ defmodule Ollixir do
         response = native_line(response, buffer, dest, cast_fun)
 
         case response.private[:ollixir_ndjson_error] do
-          nil -> res({:ok, response})
+          nil -> finish_native(response, opts[:url])
           error -> {:error, error}
         end
 
       result ->
-        res(result)
+        Ollixir.Transport.result(result)
     end
   end
+
+  defp finish_native(%{body: %{"done" => true} = body}, endpoint)
+       when endpoint in ["chat", "generate"],
+       do: {:ok, body}
+
+  defp finish_native(%{body: %{"_debug_info" => _} = body}, endpoint)
+       when endpoint in ["chat", "generate"],
+       do: {:ok, body}
+
+  defp finish_native(%{body: body}, endpoint)
+       when endpoint not in ["chat", "generate"] and is_map(body),
+       do: {:ok, body}
+
+  defp finish_native(_response, _endpoint),
+    do: {:error, RequestError.exception("Incomplete NDJSON response")}
 
   defp native_chunk(%{status: status} = response, chunk, _dest, _cast_fun)
        when status not in 200..299 do

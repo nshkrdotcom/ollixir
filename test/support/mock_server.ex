@@ -580,6 +580,21 @@ defmodule Ollixir.MockServer do
     end
   end
 
+  post "/v1/chat/completions" do
+    case conn.body_params do
+      %{"model" => "unauthorized"} ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(401, ~s({"error":{"message":"access denied"}}))
+
+      %{"stream" => true} ->
+        conn = conn |> put_resp_content_type("text/event-stream") |> send_chunked(200)
+        {:ok, conn} = chunk(conn, "data: {\"text\":\"caf" <> <<195>>)
+        {:ok, conn} = chunk(conn, <<169>> <> "\"}\r\n\r\ndata: [DONE]\n\n")
+        conn
+    end
+  end
+
   match _ do
     send_resp(conn, 404, "")
   end
@@ -644,11 +659,9 @@ defmodule Ollixir.MockServer do
 
   defp messages_images_valid?(_), do: false
 
-  defp valid_images?(images) when is_list(images) do
+  defp valid_images?(images) do
     Enum.all?(images, &valid_base64?/1)
   end
-
-  defp valid_images?(_), do: false
 
   defp valid_base64?(value) when is_binary(value) do
     case Base.decode64(value) do

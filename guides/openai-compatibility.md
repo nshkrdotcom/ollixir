@@ -83,10 +83,14 @@ File.write!("speech.wav", bytes)
 ```
 
 `file:` accepts a path, `{:file, path}`, or `{:binary, bytes, filename}`.
-Audio fields are scalar multipart values; response formats and translation
-language support depend on the server. `audio_speech/2` returns raw audio bytes;
-with `stream: true`, write each binary chunk in order. Speech streaming is a
-client transport choice, not an extra JSON `stream` field.
+Audio fields are scalar multipart values. Use `language` for the source
+language and `to_language` for the translation target. The server accepts
+`json`, `text`, and `verbose_json` response formats.
+
+`audio_speech/2` returns WAV or PCM bytes. Pass `voice` to select a voice
+supported by the model. The server accepts `speed: 1` and
+`stream_format: "audio"` when supplied. With `stream: true`, Ollixir delivers
+each binary chunk in order and omits `stream` from the JSON request.
 
 Failures use Ollixir's `RequestError`, `ConnectionError`, or `ResponseError`
 exceptions (returned as error tuples for non-streaming calls). HTTP/provider

@@ -27,15 +27,18 @@ IO.inspect(result["answers"])
 The state and instructions may be strings, JSON objects, or arrays. A list of
 `{name, question}` pairs encodes as a JSON object in the supplied order. A map
 is convenient if question order does not matter. Do not duplicate names.
+Some decision models accept `state: nil` and supply default instructions when
+the question omits them.
 Question types include `"noul"` (numeric probability), `"choice"` (categorical),
-and `"score"` (ordered scoring criteria). For score questions, use a list of
-criteria in the model's expected order. Choice and optional noul criteria are
-objects; `Jason.OrderedObject.new/1` can preserve a specific criteria order.
-The model/server validates the precise criteria and question constraints.
+and `"score"` (ordered scoring criteria). For score questions, pass a list such
+as `["low", "medium", "high"]`. Most runners accept 2–10 levels, and some
+decision models use different limits or support structured descriptions.
+Choice criteria map option names to descriptions. Optional noul criteria
+use the keys `"true"` and `"false"`. Use `Jason.OrderedObject.new/1` when
+criteria order matters.
 
 Optional `runner`, `keep_alive`, and `images` follow the native API. Images use
-Ollixir's normal image encoding. Video is not supported by current local
-runners; passing a reserved field does not make video inference available.
+Ollixir's normal image encoding. Ollixir rejects nonempty video lists locally.
 
 With `response_format: :struct`, the result is an
 `Ollixir.Types.SystemOneResponse` with `model`, `answers`, `usage`, and

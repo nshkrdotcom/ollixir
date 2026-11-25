@@ -107,9 +107,8 @@ defmodule Ollixir.ProtocolTest do
   end
 
   defp chunks(request, chunks, status \\ 200) do
-    Enum.reduce(chunks, {request, %Req.Response{status: status, body: ""}}, fn chunk, acc ->
-      {:cont, acc} = request.into.({:data, chunk}, acc)
-      acc
+    Enum.reduce_while(chunks, {request, %Req.Response{status: status, body: ""}}, fn chunk, acc ->
+      request.into.({:data, chunk}, acc)
     end)
   end
 
@@ -146,9 +145,19 @@ defmodule Ollixir.ProtocolTest do
   end
 
   test "SSE can halt early and leaves no worker data messages" do
-    c = client(fn request -> chunks(request, ["data: {\"n\":1}\n\ndata: {\"n\":2}\n\n"]) end)
+    owner = self()
+
+    c =
+      client(fn request ->
+        send(owner, {:stream_worker, self()})
+        chunks(request, ["data: {\"n\":1}\n\ndata: {\"n\":2}\n\n"])
+        Process.sleep(:infinity)
+      end)
+
     assert {:ok, stream} = OpenAI.responses(c, model: "m", input: "hello", stream: true)
     assert Enum.take(stream, 1) == [%{"n" => 1}]
+    assert_receive {:stream_worker, worker}
+    refute Process.alive?(worker)
     refute_receive {_pid, {:data, _}}, 20
   end
 
@@ -174,6 +183,50 @@ defmodule Ollixir.ProtocolTest do
     assert_raise RequestError, fn -> Enum.to_list(stream) end
   end
 
+  test "Req Plug adapter handles terminal and truncated SSE and Responses errors" do
+    for {payload, expected} <- [
+          {"event: response.completed\ndata: {\"type\":\"response.completed\"}\n\n", :done},
+          {"data: {\"type\":\"response.in_progress\"}\n\n", :incomplete},
+          {"data: {\"type\":\"response.in_progress\"", :incomplete},
+          {"event: response.failed\ndata: {\"type\":\"response.failed\",\"response\":{\"error\":{\"message\":\"failed inference\"}}}\n\n",
+           :failed}
+        ] do
+      c =
+        OpenAI.init(
+          base_url: "http://ollama.test",
+          plug: fn conn ->
+            assert conn.request_path == "/v1/responses"
+
+            conn
+            |> Plug.Conn.put_resp_content_type("text/event-stream")
+            |> Plug.Conn.send_resp(200, payload)
+          end
+        )
+
+      assert {:ok, stream} = OpenAI.responses(c, model: "m", input: "hello", stream: true)
+
+      case expected do
+        :done ->
+          assert Enum.to_list(stream) == [%{"type" => "response.completed"}]
+
+        :incomplete ->
+          assert_raise RequestError, fn -> Enum.to_list(stream) end
+
+        :failed ->
+          assert_raise ResponseError, ~r/failed inference/, fn -> Enum.to_list(stream) end
+      end
+    end
+  end
+
+  test "Req Finch adapter receives SSE bytes and preserves streamed HTTP errors" do
+    c = OpenAI.init("http://127.0.0.1:4000")
+    assert {:ok, stream} = OpenAI.chat(c, model: "m", messages: [], stream: true)
+    assert Enum.to_list(stream) == [%{"text" => "café"}]
+
+    assert {:ok, stream} = OpenAI.chat(c, model: "unauthorized", messages: [], stream: true)
+    assert_raise ResponseError, ~r/HTTP 401: access denied/, fn -> Enum.to_list(stream) end
+  end
+
   test "multipart audio file and scalar fields are encoded with a closing boundary" do
     audio = <<0, 1, 2, 255>>
 
@@ -193,14 +246,27 @@ defmodule Ollixir.ProtocolTest do
           assert :binary.match(data, "filename=\"sample.wav\"") != :nomatch
           assert :binary.match(data, audio) != :nomatch
           assert :binary.match(data, "--" <> boundary <> "--\r\n") != :nomatch
+          assert :binary.match(data, "name=\"language\"\r\n\r\nes\r\n") != :nomatch
+
+          if operation == :audio_translations do
+            assert :binary.match(data, "name=\"to_language\"\r\n\r\nen\r\n") != :nomatch
+          end
+
           json(request, %{"text" => "hello"})
         end)
 
+      params = [
+        model: "m",
+        file: {:binary, audio, "sample.wav"},
+        response_format: "json",
+        language: "es"
+      ]
+
+      params =
+        if operation == :audio_translations, do: params ++ [to_language: "en"], else: params
+
       assert {:ok, %{"text" => "hello"}} =
-               apply(OpenAI, operation, [
-                 c,
-                 [model: "m", file: {:binary, audio, "sample.wav"}, response_format: "json"]
-               ])
+               apply(OpenAI, operation, [c, params])
     end
   end
 

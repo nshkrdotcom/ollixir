@@ -29,7 +29,7 @@ defmodule Ollixir.SSE do
 
   def finish(%{error: error}) when not is_nil(error), do: {:error, error}
   def finish(%{terminal: true}), do: :ok
-  def finish(%{buffer: "", data: [], seen: true}), do: :ok
+  def finish(%{buffer: "", data: [], seen: true}), do: {:error, :missing_terminal_event}
   def finish(%{seen: false}), do: {:error, :empty_or_incomplete_stream}
   def finish(_), do: {:error, :incomplete_event}
 

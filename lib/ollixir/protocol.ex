@@ -114,6 +114,7 @@ defmodule Ollixir.Protocol do
           http_errors: :return
         )
 
+      mode = if mode == :sse, do: {:sse, terminal_event(path)}, else: mode
       work = fn dest -> run_stream(client.req, opts, dest, mode) end
 
       case stream do
@@ -122,6 +123,11 @@ defmodule Ollixir.Protocol do
       end
     end
   end
+
+  defp terminal_event("/v1/messages"), do: "message_stop"
+  defp terminal_event("/v1/responses"), do: "response.completed"
+  defp terminal_event("/v1/audio/" <> _), do: "transcript.text.done"
+  defp terminal_event(_path), do: nil
 
   defp enumerable(work) do
     Stream.resource(
@@ -179,7 +185,9 @@ defmodule Ollixir.Protocol do
   defp run_stream(req, opts, dest, mode) do
     handler = fn {:data, chunk}, {request, response} ->
       response = handle_chunk(response, chunk, dest, mode)
-      {:cont, {request, response}}
+      state = response.private[:ollixir_sse]
+      action = if state && (state.terminal || state.error), do: :halt, else: :cont
+      {action, {request, response}}
     end
 
     case Req.request(req, Keyword.put(opts, :into, handler)) do
@@ -201,18 +209,27 @@ defmodule Ollixir.Protocol do
     %{response | private: Map.put(response.private, :ollixir_binary_stream, true)}
   end
 
-  defp handle_chunk(response, chunk, dest, :sse) do
+  defp handle_chunk(response, chunk, dest, {:sse, terminal_event}) do
     state = Map.get(response.private, :ollixir_sse, SSE.new())
     {events, state} = SSE.feed(state, chunk)
 
     state =
       Enum.reduce_while(events, state, fn {event, data}, acc ->
-        if event == "error" or data["type"] == "error" or not is_nil(data["error"]) do
-          error = ResponseError.exception(status: response.status, body: data)
-          {:halt, %{acc | error: error}}
-        else
-          send(dest, {self(), {:data, data}})
-          {:cont, acc}
+        type = data["type"]
+
+        cond do
+          event in ["error", "response.failed"] or type in ["error", "response.failed"] or
+              not is_nil(data["error"]) ->
+            error = ResponseError.exception(status: response.status, body: data)
+            {:halt, %{acc | error: error}}
+
+          is_binary(terminal_event) and (event == terminal_event or type == terminal_event) ->
+            send(dest, {self(), {:data, data}})
+            {:halt, %{acc | terminal: true, error: nil}}
+
+          true ->
+            send(dest, {self(), {:data, data}})
+            {:cont, acc}
         end
       end)
 
@@ -229,10 +246,10 @@ defmodule Ollixir.Protocol do
     {:ok, :done}
   end
 
-  defp finish(response, dest, :sse) do
+  defp finish(response, dest, {:sse, _} = mode) do
     response =
       if not Map.has_key?(response.private, :ollixir_sse) and is_binary(response.body) do
-        handle_chunk(response, response.body, dest, :sse)
+        handle_chunk(response, response.body, dest, mode)
       else
         response
       end

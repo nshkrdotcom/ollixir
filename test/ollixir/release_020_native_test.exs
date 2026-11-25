@@ -218,11 +218,18 @@ defmodule Ollixir.Release020NativeTest do
     for questions <- [
           [],
           [{"same", q}, {"same", q}],
-          %{"bad" => %{type: "unknown", instructions: "?"}}
+          %{"bad" => %{type: "unknown", instructions: "?"}},
+          %{"bad" => %{type: "score", instructions: "?", criteria: []}},
+          %{"bad" => %{type: "score", instructions: "?", criteria: %{"low" => "Low"}}},
+          %{"bad" => %{type: "noul", instructions: "?", criteria: %{"maybe" => "Maybe"}}},
+          %{"bad" => %{type: "choice", instructions: "?", criteria: %{" " => "Blank"}}}
         ] do
       assert {:error, %RequestError{}} =
                Ollixir.system_one(c, model: "m", state: "state", questions: questions)
     end
+
+    assert {:error, %RequestError{field: :videos}} =
+             Ollixir.system_one(c, model: "m", state: "state", questions: %{q: q}, videos: ["x"])
   end
 
   test "System One preserves ordered object questions and numeric answers" do
@@ -237,11 +244,14 @@ defmodule Ollixir.Release020NativeTest do
         data = body(request)
         assert is_map(data["questions"])
         assert data["questions"]["z_first"]["type"] == "noul"
+        assert data["questions"]["a_second"]["criteria"] == ["low", "medium", "high"]
+        assert data["runner"] == "r"
         refute Map.has_key?(data, "stream")
+        refute Map.has_key?(data, "response_format")
 
         json(request, %{
           "model" => "m",
-          "answers" => %{"z_first" => %{"noul" => 0.8}},
+          "answers" => %{"z_first" => %{"noul" => 0.8}, "a_second" => %{"score" => 1.5}},
           "usage" => %{"input_tokens" => 5},
           "prompt_eval_cached_count" => 2
         })
@@ -249,16 +259,18 @@ defmodule Ollixir.Release020NativeTest do
 
     assert {:ok,
             %SystemOneResponse{
-              answers: %{"z_first" => %{"noul" => 0.8}},
+              answers: %{"z_first" => %{"noul" => 0.8}, "a_second" => %{"score" => 1.5}},
+              usage: %{"input_tokens" => 5},
               prompt_eval_cached_count: 2
             }} =
              Ollixir.system_one(c,
                model: "m",
+               runner: "r",
                state: %{text: "state"},
                questions: [
                  {"z_first", %{type: "noul", instructions: "True?"}},
                  {"a_second",
-                  %{type: "choice", instructions: "Choose", criteria: %{"a" => "A", "b" => "B"}}}
+                  %{type: "score", instructions: "Rate", criteria: ["low", "medium", "high"]}}
                ],
                response_format: :struct
              )
@@ -309,27 +321,32 @@ defmodule Ollixir.Release020NativeTest do
   end
 
   test "local experimental web operations keep configured proxy host" do
-    c =
-      client(fn request ->
-        assert request.url.host == "ollama.test"
-        assert request.method == :post
+    for suffix <- ["", "/api", "/v1"] do
+      c =
+        Ollixir.init(
+          base_url: "http://ollama.test/proxy" <> suffix,
+          adapter: fn request ->
+            assert request.url.host == "ollama.test"
+            assert request.method == :post
 
-        case request.url.path do
-          "/proxy/api/experimental/web_search" ->
-            assert body(request)["query"] == "test"
-            json(request, %{"results" => []})
+            case request.url.path do
+              "/proxy/api/experimental/web_search" ->
+                assert body(request)["query"] == "test"
+                json(request, %{"results" => []})
 
-          "/proxy/api/experimental/web_fetch" ->
-            assert body(request)["url"] == "https://example.test"
-            json(request, %{"title" => "Example", "content" => "text"})
-        end
-      end)
+              "/proxy/api/experimental/web_fetch" ->
+                assert body(request)["url"] == "https://example.test"
+                json(request, %{"title" => "Example", "content" => "text"})
+            end
+          end
+        )
 
-    assert {:ok, %Ollixir.Web.SearchResponse{results: []}} =
-             Ollixir.web_search_experimental(c, query: "test")
+      assert {:ok, %Ollixir.Web.SearchResponse{results: []}} =
+               Ollixir.web_search_experimental(c, query: "test")
 
-    assert {:ok, %Ollixir.Web.FetchResponse{content: "text"}} =
-             Ollixir.web_fetch_experimental(c, url: "https://example.test")
+      assert {:ok, %Ollixir.Web.FetchResponse{content: "text"}} =
+               Ollixir.web_fetch_experimental(c, url: "https://example.test")
+    end
   end
 
   defp chunks(request, chunks) do
@@ -363,5 +380,32 @@ defmodule Ollixir.Release020NativeTest do
     c = client(fn request -> chunks(request, ["{\"error\":\"failure\"}\n"]) end)
     assert {:ok, stream} = Ollixir.generate(c, model: "m", prompt: "p", stream: true)
     assert_raise ResponseError, ~r/failure/, fn -> Enum.to_list(stream) end
+  end
+
+  test "native inference detects EOF after a complete but nonterminal record" do
+    c =
+      client(fn request -> chunks(request, ["{\"response\":\"partial\",\"done\":false}\r\n"]) end)
+
+    assert {:ok, stream} = Ollixir.generate(c, model: "m", prompt: "p", stream: true)
+    assert_raise RequestError, ~r/Incomplete NDJSON/, fn -> Enum.to_list(stream) end
+  end
+
+  test "halting native typed streaming stops its worker and drains buffered data" do
+    owner = self()
+
+    c =
+      client(fn request ->
+        send(owner, {:stream_worker, self()})
+        chunks(request, ["{\"response\":\"first\",\"done\":false}\n{\"done\":true}\n"])
+        Process.sleep(:infinity)
+      end)
+
+    assert {:ok, stream} =
+             Ollixir.generate(c, model: "m", prompt: "p", stream: true, response_format: :struct)
+
+    assert [%Ollixir.Types.GenerateResponse{response: "first"}] = Enum.take(stream, 1)
+    assert_receive {:stream_worker, worker}
+    refute Process.alive?(worker)
+    refute_receive {^worker, {:data, _}}, 20
   end
 end
